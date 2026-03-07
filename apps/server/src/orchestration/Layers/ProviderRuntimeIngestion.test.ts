@@ -644,6 +644,47 @@ describe("ProviderRuntimeIngestion", () => {
     });
   });
 
+  it("projects root-level token_usage totals into normalized thread context-window state", async () => {
+    const harness = await createHarness();
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "thread.token-usage.updated",
+      eventId: asEventId("evt-context-window-root-token-usage"),
+      provider: "codex",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      payload: {
+        usage: {
+          token_usage: {
+            total_tokens: 100,
+            input_tokens: 80,
+            cached_input_tokens: 20,
+            output_tokens: 15,
+            reasoning_output_tokens: 5,
+            model_context_window: 258400,
+          },
+        },
+      },
+    });
+
+    const thread = await waitForThread(
+      harness.engine,
+      (entry) => entry.contextWindow?.usedTokens === 100 && entry.contextWindow?.usedPercent === 0,
+    );
+    expect(thread.contextWindow).toMatchObject({
+      provider: "codex",
+      usedTokens: 100,
+      maxTokens: 258400,
+      remainingTokens: 258300,
+      usedPercent: 0,
+      inputTokens: 80,
+      cachedInputTokens: 20,
+      outputTokens: 15,
+      reasoningOutputTokens: 5,
+    });
+  });
+
   it("ignores malformed thread token usage payloads", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();

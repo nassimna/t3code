@@ -96,6 +96,77 @@ describe("normalizeCodexContextWindow", () => {
     });
   });
 
+  it("accepts root-level snake_case token_usage totals objects", () => {
+    expect(
+      normalizeCodexContextWindow(
+        {
+          token_usage: {
+            total_tokens: 100,
+            model_context_window: 258400,
+          },
+        },
+        "2026-03-07T00:00:00.000Z",
+      ),
+    ).toEqual({
+      provider: "codex",
+      usedTokens: 100,
+      maxTokens: 258400,
+      remainingTokens: 258300,
+      usedPercent: 0,
+      updatedAt: "2026-03-07T00:00:00.000Z",
+    });
+  });
+
+  it("accepts root-level camelCase tokenUsage totals objects", () => {
+    expect(
+      normalizeCodexContextWindow(
+        {
+          tokenUsage: {
+            totalTokens: 100,
+            modelContextWindow: 258400,
+          },
+        },
+        "2026-03-07T00:00:00.000Z",
+      ),
+    ).toEqual({
+      provider: "codex",
+      usedTokens: 100,
+      maxTokens: 258400,
+      remainingTokens: 258300,
+      usedPercent: 0,
+      updatedAt: "2026-03-07T00:00:00.000Z",
+    });
+  });
+
+  it("carries bucket fields from root-level totals objects", () => {
+    expect(
+      normalizeCodexContextWindow(
+        {
+          token_usage: {
+            total_tokens: 100,
+            input_tokens: 80,
+            cached_input_tokens: 20,
+            output_tokens: 15,
+            reasoning_output_tokens: 5,
+            model_context_window: 258400,
+          },
+        },
+        "2026-03-07T00:00:00.000Z",
+      ),
+    ).toEqual({
+      provider: "codex",
+      usedTokens: 100,
+      maxTokens: 258400,
+      remainingTokens: 258300,
+      usedPercent: 0,
+      inputTokens: 80,
+      cachedInputTokens: 20,
+      outputTokens: 15,
+      reasoningOutputTokens: 5,
+      updatedAt: "2026-03-07T00:00:00.000Z",
+    });
+  });
+
   it("ignores malformed or incomplete payloads", () => {
     expect(normalizeCodexContextWindow({}, "2026-03-07T00:00:00.000Z")).toBeNull();
     expect(

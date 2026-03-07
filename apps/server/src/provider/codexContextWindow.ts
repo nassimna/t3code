@@ -45,6 +45,25 @@ function pickFirstRecord(
   return null;
 }
 
+function recordHasTotalTokenFields(record: UnknownRecord): boolean {
+  return pickNumber(record, ["total_tokens", "totalTokens"]) !== undefined;
+}
+
+function resolveTotalUsageRecord(records: ReadonlyArray<UnknownRecord>): UnknownRecord | null {
+  const nestedRecord = pickFirstRecord(records, [
+    "total_token_usage",
+    "totalTokenUsage",
+    "usage",
+    "total_usage",
+    "total",
+  ]);
+  if (nestedRecord) {
+    return nestedRecord;
+  }
+
+  return records.find(recordHasTotalTokenFields) ?? null;
+}
+
 function pickFirstNumber(
   records: ReadonlyArray<UnknownRecord>,
   keys: ReadonlyArray<string>,
@@ -71,14 +90,7 @@ export function normalizeCodexContextWindow(
   const tokenUsage = asRecord(pickValue(payload, ["tokenUsage", "token_usage"]));
   const infoTokenUsage = asRecord(pickValue(info, ["tokenUsage", "token_usage"]));
   const records = compactRecords([payload, info, tokenUsage, infoTokenUsage]);
-  const totalUsage = pickFirstRecord(records, [
-    "total_token_usage",
-    "totalTokenUsage",
-    "usage",
-    "total_usage",
-    "total",
-  ]);
-
+  const totalUsage = resolveTotalUsageRecord(records);
   const usedTokens = pickNumber(totalUsage, ["total_tokens", "totalTokens"]);
   const maxTokens = pickFirstNumber(records, [
     "model_context_window",
@@ -90,13 +102,10 @@ export function normalizeCodexContextWindow(
     return null;
   }
 
-  const usageTotals = totalUsage ?? asRecord(
-    pickValue(payload, ["total_token_usage", "totalTokenUsage", "usage", "total_usage", "total"]),
-  );
-  const inputTokens = pickNumber(usageTotals, ["input_tokens", "inputTokens"]);
-  const cachedInputTokens = pickNumber(usageTotals, ["cached_input_tokens", "cachedInputTokens"]);
-  const outputTokens = pickNumber(usageTotals, ["output_tokens", "outputTokens"]);
-  const reasoningOutputTokens = pickNumber(usageTotals, [
+  const inputTokens = pickNumber(totalUsage, ["input_tokens", "inputTokens"]);
+  const cachedInputTokens = pickNumber(totalUsage, ["cached_input_tokens", "cachedInputTokens"]);
+  const outputTokens = pickNumber(totalUsage, ["output_tokens", "outputTokens"]);
+  const reasoningOutputTokens = pickNumber(totalUsage, [
     "reasoning_output_tokens",
     "reasoningOutputTokens",
   ]);
