@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveActiveWorkStartedAt,
   deriveActivePlanState,
+  deriveThreadStatusState,
   PROVIDER_OPTIONS,
   derivePendingApprovals,
   derivePendingUserInputs,
@@ -13,6 +14,7 @@ import {
   hasToolActivityForTurn,
   isLatestTurnSettled,
 } from "./session-logic";
+import type { ThreadSession } from "./types";
 
 function makeActivity(overrides: {
   id?: string;
@@ -257,6 +259,244 @@ describe("deriveActivePlanState", () => {
       explanation: "Refined plan",
       steps: [{ step: "Implement Codex user input", status: "inProgress" }],
     });
+  });
+});
+
+function makeSession(
+  overrides: Partial<ThreadSession> = {},
+): ThreadSession {
+  return {
+    provider: "codex",
+    status: "ready",
+    createdAt: "2026-02-23T00:00:00.000Z",
+    updatedAt: "2026-02-23T00:00:00.000Z",
+    orchestrationStatus: "ready",
+    ...overrides,
+  };
+}
+
+describe("deriveThreadStatusState", () => {
+  it("returns awaiting-response for unresolved approvals", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        kind: "approval.requested",
+        tone: "approval",
+        summary: "Command approval requested",
+        payload: {
+          requestId: "req-approval-1",
+          requestKind: "command",
+        },
+      }),
+    ];
+
+    expect(
+      deriveThreadStatusState({
+        session: makeSession({ status: "running", orchestrationStatus: "running" }),
+        latestTurn: null,
+        activities,
+      }),
+    ).toBe("awaiting-response");
+  });
+
+  it("returns awaiting-response for unresolved user input", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        kind: "user-input.requested",
+        tone: "info",
+        summary: "User input requested",
+        payload: {
+          requestId: "req-user-input-1",
+          questions: [
+            {
+              id: "sandbox_mode",
+              header: "Sandbox",
+              question: "Which mode should be used?",
+              options: [
+                {
+                  label: "workspace-write",
+                  description: "Allow workspace writes only",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    ];
+
+    expect(
+      deriveThreadStatusState({
+        session: makeSession({ status: "running", orchestrationStatus: "running" }),
+        latestTurn: null,
+        activities,
+      }),
+    ).toBe("awaiting-response");
+  });
+
+  it("returns awaiting-response when approvals and user input are both open", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "approval-open",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "approval.requested",
+        tone: "approval",
+        summary: "Command approval requested",
+        payload: {
+          requestId: "req-approval-1",
+          requestKind: "command",
+        },
+      }),
+      makeActivity({
+        id: "user-input-open",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "user-input.requested",
+        tone: "info",
+        summary: "User input requested",
+        payload: {
+          requestId: "req-user-input-1",
+          questions: [
+            {
+              id: "approval",
+              header: "Approval",
+              question: "Continue?",
+              options: [
+                {
+                  label: "yes",
+                  description: "Continue execution",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    ];
+
+    expect(
+      deriveThreadStatusState({
+        session: makeSession({ status: "running", orchestrationStatus: "running" }),
+        latestTurn: null,
+        activities,
+      }),
+    ).toBe("awaiting-response");
+  });
+
+  it("falls back to working after blocked activity resolves", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "approval-open",
+        createdAt: "2026-02-23T00:00:01.000Z",
+        kind: "approval.requested",
+        tone: "approval",
+        summary: "Command approval requested",
+        payload: {
+          requestId: "req-approval-1",
+          requestKind: "command",
+        },
+      }),
+      makeActivity({
+        id: "approval-resolved",
+        createdAt: "2026-02-23T00:00:02.000Z",
+        kind: "approval.resolved",
+        tone: "info",
+        summary: "Approval resolved",
+        payload: {
+          requestId: "req-approval-1",
+        },
+      }),
+    ];
+
+    expect(
+      deriveThreadStatusState({
+        session: makeSession({ status: "running", orchestrationStatus: "running" }),
+        latestTurn: null,
+        activities,
+      }),
+    ).toBe("working");
+  });
+
+  it("returns connecting when there is no blocked activity", () => {
+    expect(
+      deriveThreadStatusState({
+        session: makeSession({ status: "connecting", orchestrationStatus: "starting" }),
+        latestTurn: null,
+        activities: [],
+      }),
+    ).toBe("connecting");
+  });
+
+  it("returns completed for unseen completed turns", () => {
+    expect(
+      deriveThreadStatusState({
+        session: makeSession(),
+        latestTurn: {
+          turnId: TurnId.makeUnsafe("turn-1"),
+          startedAt: "2026-02-23T00:00:01.000Z",
+          completedAt: "2026-02-23T00:00:02.000Z",
+        },
+        lastVisitedAt: "2026-02-23T00:00:01.500Z",
+        activities: [],
+      }),
+    ).toBe("completed");
+  });
+
+  it("prefers awaiting-response over completed", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        kind: "user-input.requested",
+        tone: "info",
+        summary: "User input requested",
+        payload: {
+          requestId: "req-user-input-1",
+          questions: [
+            {
+              id: "sandbox_mode",
+              header: "Sandbox",
+              question: "Which mode should be used?",
+              options: [
+                {
+                  label: "workspace-write",
+                  description: "Allow workspace writes only",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    ];
+
+    expect(
+      deriveThreadStatusState({
+        session: makeSession(),
+        latestTurn: {
+          turnId: TurnId.makeUnsafe("turn-1"),
+          startedAt: "2026-02-23T00:00:01.000Z",
+          completedAt: "2026-02-23T00:00:02.000Z",
+        },
+        lastVisitedAt: "2026-02-23T00:00:01.500Z",
+        activities,
+      }),
+    ).toBe("awaiting-response");
+  });
+
+  it("prefers awaiting-response over running", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        kind: "approval.requested",
+        tone: "approval",
+        summary: "Command approval requested",
+        payload: {
+          requestId: "req-approval-1",
+          requestKind: "command",
+        },
+      }),
+    ];
+
+    expect(
+      deriveThreadStatusState({
+        session: makeSession({ status: "running", orchestrationStatus: "running" }),
+        latestTurn: null,
+        activities,
+      }),
+    ).toBe("awaiting-response");
   });
 });
 
