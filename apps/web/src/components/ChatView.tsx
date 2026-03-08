@@ -5594,6 +5594,15 @@ const PROVIDER_ICON_BY_PROVIDER: Record<ProviderPickerKind, Icon> = {
   cursor: CursorIcon,
 };
 
+const EDITOR_ICON_BY_ID: Record<EditorId, Icon> = {
+  cursor: CursorIcon,
+  vscode: VisualStudioCode,
+  "vscode-insiders": VisualStudioCode,
+  vscodium: VisualStudioCode,
+  zed: Zed,
+  "file-manager": FolderClosedIcon,
+};
+
 function resolveModelForProviderPicker(
   provider: ProviderKind,
   value: string,
@@ -5854,32 +5863,19 @@ const OpenInPicker = memo(function OpenInPicker({
   });
 
   const allOptions = useMemo<Array<{ label: string; Icon: Icon; value: EditorId }>>(
-    () => [
-      {
-        label: "Cursor",
-        Icon: CursorIcon,
-        value: "cursor",
-      },
-      {
-        label: "VS Code",
-        Icon: VisualStudioCode,
-        value: "vscode",
-      },
-      {
-        label: "Zed",
-        Icon: Zed,
-        value: "zed",
-      },
-      {
-        label: isMacPlatform(navigator.platform)
-          ? "Finder"
-          : isWindowsPlatform(navigator.platform)
-            ? "Explorer"
-            : "Files",
-        Icon: FolderClosedIcon,
-        value: "file-manager",
-      },
-    ],
+    () =>
+      EDITORS.map((editor) => ({
+        label:
+          editor.id === "file-manager"
+            ? isMacPlatform(navigator.platform)
+              ? "Finder"
+              : isWindowsPlatform(navigator.platform)
+                ? "Explorer"
+                : "Files"
+            : editor.label,
+        Icon: EDITOR_ICON_BY_ID[editor.id],
+        value: editor.id,
+      })),
     [],
   );
   const options = useMemo(
