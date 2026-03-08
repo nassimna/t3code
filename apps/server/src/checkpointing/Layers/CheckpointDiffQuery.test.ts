@@ -199,9 +199,83 @@ describe("CheckpointDiffQueryLive", () => {
     ).rejects.toThrow("Thread 'thread-missing' not found.");
   });
 
-  it("fails with an invariant error when checkpoint turn counts are non-contiguous", async () => {
+  it("allows partial checkpoint history when the requested turn range exists", async () => {
     const projectId = ProjectId.makeUnsafe("project-gap");
     const threadId = ThreadId.makeUnsafe("thread-gap");
+    const diffCheckpointsCalls: Array<{
+      readonly fromCheckpointRef: CheckpointRef;
+      readonly toCheckpointRef: CheckpointRef;
+      readonly cwd: string;
+    }> = [];
+
+    const snapshot = makeSnapshot({
+      projectId,
+      threadId,
+      workspaceRoot: "/tmp/workspace",
+      worktreePath: null,
+      checkpoints: [
+        {
+          checkpointTurnCount: 1,
+          checkpointRef: checkpointRefForThreadTurn(threadId, 1),
+        },
+        {
+          checkpointTurnCount: 3,
+          checkpointRef: checkpointRefForThreadTurn(threadId, 3),
+        },
+      ],
+    });
+
+    const checkpointStore: CheckpointStoreShape = {
+      isGitRepository: () => Effect.succeed(true),
+      captureCheckpoint: () => Effect.void,
+      hasCheckpointRef: () => Effect.succeed(true),
+      restoreCheckpoint: () => Effect.succeed(true),
+      diffCheckpoints: ({ fromCheckpointRef, toCheckpointRef, cwd }) =>
+        Effect.sync(() => {
+          diffCheckpointsCalls.push({ fromCheckpointRef, toCheckpointRef, cwd });
+          return "partial-history diff";
+        }),
+      deleteCheckpointRefs: () => Effect.void,
+    };
+
+    const layer = CheckpointDiffQueryLive.pipe(
+      Layer.provideMerge(Layer.succeed(CheckpointStore, checkpointStore)),
+      Layer.provideMerge(
+        Layer.succeed(ProjectionSnapshotQuery, {
+          getSnapshot: () => Effect.succeed(snapshot),
+        }),
+      ),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const query = yield* CheckpointDiffQuery;
+        return yield* query.getTurnDiff({
+          threadId,
+          fromTurnCount: 0,
+          toTurnCount: 3,
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(diffCheckpointsCalls).toEqual([
+      {
+        cwd: "/tmp/workspace",
+        fromCheckpointRef: checkpointRefForThreadTurn(threadId, 0),
+        toCheckpointRef: checkpointRefForThreadTurn(threadId, 3),
+      },
+    ]);
+    expect(result).toEqual({
+      threadId,
+      fromTurnCount: 0,
+      toTurnCount: 3,
+      diff: "partial-history diff",
+    });
+  });
+
+  it("fails when a specifically requested checkpoint row is missing", async () => {
+    const projectId = ProjectId.makeUnsafe("project-missing-turn");
+    const threadId = ThreadId.makeUnsafe("thread-missing-turn");
 
     const snapshot = makeSnapshot({
       projectId,
@@ -244,7 +318,7 @@ describe("CheckpointDiffQueryLive", () => {
           const query = yield* CheckpointDiffQuery;
           return yield* query.getTurnDiff({
             threadId,
-            fromTurnCount: 0,
+            fromTurnCount: 2,
             toTurnCount: 3,
           });
         }).pipe(Effect.provide(layer)),
