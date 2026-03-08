@@ -153,6 +153,7 @@ const CODEX_STDERR_LOG_REGEX =
 const BENIGN_ERROR_LOG_SNIPPETS = [
   "state db missing rollout path for thread",
   "state db record_discrepancy: find_thread_path_by_id_str_in_subdir, falling_back",
+  "codex_core::skills::loader: failed to stat skills entry",
 ];
 const RECOVERABLE_THREAD_RESUME_ERROR_SNIPPETS = [
   "not found",

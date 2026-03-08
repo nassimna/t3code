@@ -5087,11 +5087,14 @@ const MessagesTimeline = memo(function MessagesTimeline({
                   </div>
                 )}
                 {row.message.text && (
-                  <pre className="whitespace-pre-wrap wrap-break-word font-mono text-sm leading-relaxed text-foreground">
+                  <pre
+                    data-chat-user-message-text="true"
+                    className="chat-composer-body-text m-0 whitespace-pre-wrap wrap-break-word text-foreground"
+                  >
                     {row.message.text}
                   </pre>
                 )}
-                <div className="mt-1.5 flex items-center justify-end gap-2">
+                <div className="mt-1.5 flex items-center justify-end">
                   <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
                     {row.message.text && <MessageCopyButton text={row.message.text} />}
                     {canRevertAgentWork && (
@@ -5107,9 +5110,6 @@ const MessagesTimeline = memo(function MessagesTimeline({
                       </Button>
                     )}
                   </div>
-                  <p className="text-right text-[10px] text-muted-foreground/30">
-                    {formatTimestamp(row.message.createdAt)}
-                  </p>
                 </div>
               </div>
             </div>
