@@ -152,6 +152,12 @@ describe("classifyCodexStderrLine", () => {
     expect(classifyCodexStderrLine(line)).toBeNull();
   });
 
+  it("ignores missing Codex skill symlink errors", () => {
+    const line =
+      "2026-03-08T02:44:10.568816Z ERROR codex_core::skills::loader: failed to stat skills entry /home/nassimna/.codex/skills/vue (symlink): No such file or directory (os error 2)";
+    expect(classifyCodexStderrLine(line)).toBeNull();
+  });
+
   it("keeps unknown structured errors", () => {
     const line = "2026-02-08T04:24:20.085687Z ERROR codex_core::runtime: unrecoverable failure";
     expect(classifyCodexStderrLine(line)).toEqual({

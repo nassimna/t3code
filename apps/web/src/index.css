@@ -170,6 +170,12 @@ input {
   font-family: var(--app-font-mono);
 }
 
+.chat-composer-body-text {
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
 /* Window drag region (frameless titlebar) */
 .drag-region {
   -webkit-app-region: drag;

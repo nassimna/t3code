@@ -435,6 +435,16 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   );
 }
 
+async function waitForUserMessageText(targetMessageId: MessageId): Promise<HTMLElement> {
+  return waitForElement(
+    () =>
+      document.querySelector<HTMLElement>(
+        `[data-message-id="${targetMessageId}"][data-message-role="user"] [data-chat-user-message-text="true"]`,
+      ),
+    "Unable to find rendered user message text.",
+  );
+}
+
 async function waitForInteractionModeButton(expectedLabel: "Chat" | "Plan"): Promise<HTMLButtonElement> {
   return waitForElement(
     () =>
@@ -442,6 +452,43 @@ async function waitForInteractionModeButton(expectedLabel: "Chat" | "Plan"): Pro
         (button) => button.textContent?.trim() === expectedLabel,
       ) as HTMLButtonElement | null,
     `Unable to find ${expectedLabel} interaction mode button.`,
+  );
+}
+
+async function waitForMainSidebarRoot(): Promise<HTMLElement> {
+  return waitForElement(
+    () => document.querySelector<HTMLElement>('[data-slot="sidebar"][data-side="left"]'),
+    "Unable to find main sidebar root.",
+  );
+}
+
+async function waitForMainSidebarHeaderTrigger(): Promise<HTMLButtonElement> {
+  return waitForElement(
+    () =>
+      document.querySelector<HTMLButtonElement>(
+        '[data-slot="sidebar-inset"] [data-slot="sidebar-trigger"]',
+      ),
+    "Unable to find main sidebar header trigger.",
+  );
+}
+
+async function waitForMainSidebarRail(): Promise<HTMLButtonElement> {
+  return waitForElement(
+    () => document.querySelector<HTMLButtonElement>('[data-slot="sidebar-rail"]'),
+    "Unable to find main sidebar rail.",
+  );
+}
+
+async function waitForMainSidebarState(expected: "expanded" | "collapsed"): Promise<void> {
+  await vi.waitFor(
+    async () => {
+      const sidebarRoot = await waitForMainSidebarRoot();
+      expect(sidebarRoot.dataset.state).toBe(expected);
+    },
+    {
+      timeout: 4_000,
+      interval: 16,
+    },
   );
 }
 
@@ -631,6 +678,76 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
   afterEach(() => {
     document.body.innerHTML = "";
+  });
+
+  it("matches user message typography to the composer", async () => {
+    const targetMessageId = "msg-user-target-typography" as MessageId;
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId,
+        targetText: "what is the last commit ?",
+      }),
+    });
+
+    try {
+      await mounted.measureUserRow(targetMessageId);
+      const composerEditor = await waitForComposerEditor();
+      const userMessageText = await waitForUserMessageText(targetMessageId);
+      const composerStyle = getComputedStyle(composerEditor);
+      const userMessageStyle = getComputedStyle(userMessageText);
+
+      expect(userMessageStyle.fontFamily).toBe(composerStyle.fontFamily);
+      expect(userMessageStyle.fontSize).toBe(composerStyle.fontSize);
+      expect(userMessageStyle.lineHeight).toBe(composerStyle.lineHeight);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("toggles the desktop sidebar from the header, restores it from the rail, and persists collapse state", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-sidebar-toggle" as MessageId,
+        targetText: "sidebar toggle",
+      }),
+    });
+
+    try {
+      await waitForMainSidebarState("expanded");
+
+      const headerTrigger = await waitForMainSidebarHeaderTrigger();
+      headerTrigger.click();
+      await waitForMainSidebarState("collapsed");
+      expect(window.localStorage.getItem("chat_main_sidebar_open")).toBe("false");
+
+      const rail = await waitForMainSidebarRail();
+      rail.click();
+      await waitForMainSidebarState("expanded");
+      expect(window.localStorage.getItem("chat_main_sidebar_open")).toBe("true");
+
+      headerTrigger.click();
+      await waitForMainSidebarState("collapsed");
+
+      await mounted.cleanup();
+
+      const remounted = await mountChatView({
+        viewport: DEFAULT_VIEWPORT,
+        snapshot: createSnapshotForTargetUser({
+          targetMessageId: "msg-user-sidebar-toggle-remount" as MessageId,
+          targetText: "sidebar toggle remount",
+        }),
+      });
+
+      try {
+        await waitForMainSidebarState("collapsed");
+      } finally {
+        await remounted.cleanup();
+      }
+    } finally {
+      document.body.innerHTML = "";
+    }
   });
 
   it.each(TEXT_VIEWPORT_MATRIX)(
