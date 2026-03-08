@@ -67,16 +67,20 @@ export function listBackgroundCommands(
 
   const runningCommands: BackgroundCommandSummary[] = [];
   const lastTurnIndex = snapshot.turns.length - 1;
+  const interruptedIds = new Set<string>();
 
   for (let turnIndex = lastTurnIndex; turnIndex >= 0; turnIndex -= 1) {
     const turn = snapshot.turns[turnIndex];
-    if (!turn || (turnIndex === lastTurnIndex && turn.status === "inProgress")) {
+    if (!turn) {
       continue;
     }
 
-    const interruptedIds = new Set(
-      (turn.interruptedCommandExecutionItemIds ?? []).map((itemId) => String(itemId)),
-    );
+    for (const itemId of turn.interruptedCommandExecutionItemIds ?? []) {
+      interruptedIds.add(String(itemId));
+    }
+    if (turnIndex === lastTurnIndex && turn.status === "inProgress") {
+      continue;
+    }
 
     for (const item of turn.items) {
       if (!isRunningBackgroundCommandItem(item)) {
