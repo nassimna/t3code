@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { splitPromptIntoComposerSegments } from "./composer-editor-mentions";
+import {
+  normalizeComposerInlineItems,
+  splitPromptIntoComposerSegments,
+} from "./composer-editor-mentions";
 
 describe("splitPromptIntoComposerSegments", () => {
   it("splits structured mention items into inline item segments", () => {
@@ -62,6 +65,35 @@ describe("splitPromptIntoComposerSegments", () => {
         text: "@src/index.ts",
       },
       { type: "text", text: " \ntwo" },
+    ]);
+  });
+
+  it("prefers the longest inline item when multiple items start at the same offset", () => {
+    expect(
+      normalizeComposerInlineItems("@user-group", [
+        {
+          kind: "mention",
+          name: "user",
+          path: "user",
+          start: 0,
+          end: "@user".length,
+        },
+        {
+          kind: "mention",
+          name: "user-group",
+          path: "user-group",
+          start: 0,
+          end: "@user-group".length,
+        },
+      ]),
+    ).toEqual([
+      {
+        kind: "mention",
+        name: "user-group",
+        path: "user-group",
+        start: 0,
+        end: "@user-group".length,
+      },
     ]);
   });
 });

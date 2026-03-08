@@ -44,7 +44,7 @@ export function normalizeComposerInlineItems(
       start: item.start,
       end: item.end,
     }))
-    .toSorted((left, right) => left.start - right.start || left.end - right.end);
+    .toSorted((left, right) => left.start - right.start || right.end - left.end);
   const deduped: ComposerInlineItem[] = [];
   let previousEnd = -1;
   for (const inlineItem of normalized) {
