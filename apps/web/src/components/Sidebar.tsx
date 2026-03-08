@@ -960,9 +960,9 @@ export default function Sidebar() {
   }, []);
 
   const wordmark = (
-    <div className="flex items-center gap-2">
-      <SidebarTrigger className="shrink-0 md:hidden" />
-      <div className="flex min-w-0 flex-1 items-center gap-1 mt-2 ml-1">
+    <div className="relative flex min-w-0 flex-1 items-center justify-center pl-9 md:justify-start md:pl-0">
+      <SidebarTrigger className="absolute left-0 shrink-0 md:hidden" />
+      <div className="flex min-w-0 items-center gap-1">
         <T3Wordmark />
         <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
           Code
