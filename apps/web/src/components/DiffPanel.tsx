@@ -321,8 +321,11 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   }, [navigateToBestAvailableDiff, selectedTurn, selectedTurnId, selectedTurnIsDiffable]);
 
   useEffect(() => {
+    recoveryKeyRef.current = null;
+  }, [activeThreadId, selectedTurnId]);
+
+  useEffect(() => {
     if (!activeThreadId || !activeCheckpointDiffQuery.error) {
-      recoveryKeyRef.current = null;
       return;
     }
     if (!isCheckpointRecoverableSelectionError(activeCheckpointDiffQuery.error)) {
