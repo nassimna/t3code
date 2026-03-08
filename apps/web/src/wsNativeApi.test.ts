@@ -167,13 +167,15 @@ describe("wsNativeApi", () => {
     onServerConfigUpdated(listener);
 
     const payload = {
-      issues: [
+      changedSections: ["keybindings"],
+      keybindingsIssues: [
         {
           kind: "keybindings.invalid-entry",
           index: 1,
           message: "Entry at index 1 is invalid.",
         },
       ],
+      appearanceIssues: [],
       providers: defaultProviders,
     } as const;
     emitPush(WS_CHANNELS.serverConfigUpdated, payload);
@@ -197,17 +199,23 @@ describe("wsNativeApi", () => {
     onServerConfigUpdated(listener);
 
     emitPush(WS_CHANNELS.serverConfigUpdated, {
-      issues: [{ kind: "keybindings.invalid-entry", message: "missing index" }],
+      changedSections: ["keybindings"],
+      keybindingsIssues: [{ kind: "keybindings.invalid-entry", message: "missing index" }],
+      appearanceIssues: [],
       providers: defaultProviders,
     });
     emitPush(WS_CHANNELS.serverConfigUpdated, {
-      issues: [{ kind: "keybindings.malformed-config", message: "bad json" }],
+      changedSections: ["keybindings"],
+      keybindingsIssues: [{ kind: "keybindings.malformed-config", message: "bad json" }],
+      appearanceIssues: [],
       providers: defaultProviders,
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledWith({
-      issues: [{ kind: "keybindings.malformed-config", message: "bad json" }],
+      changedSections: ["keybindings"],
+      keybindingsIssues: [{ kind: "keybindings.malformed-config", message: "bad json" }],
+      appearanceIssues: [],
       providers: defaultProviders,
     });
     expect(warnSpy).toHaveBeenCalledTimes(1);

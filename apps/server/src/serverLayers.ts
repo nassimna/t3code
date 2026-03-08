@@ -26,6 +26,7 @@ import { ProviderService } from "./provider/Services/ProviderService";
 import { makeEventNdjsonLogger } from "./provider/Layers/EventNdjsonLogger";
 
 import { TerminalManagerLive } from "./terminal/Layers/Manager";
+import { AppearanceLive } from "./appearance";
 import { KeybindingsLive } from "./keybindings";
 import { GitManagerLive } from "./git/Layers/GitManager";
 import { GitCoreLive } from "./git/Layers/GitCore";
@@ -124,6 +125,7 @@ export function makeServerRuntimeServicesLayer() {
     gitCoreLayer,
     gitManagerLayer,
     terminalLayer,
+    AppearanceLive,
     KeybindingsLive,
   ).pipe(Layer.provideMerge(NodeServices.layer));
 }

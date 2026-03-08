@@ -92,6 +92,8 @@ function SettingsRouteView() {
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
   const [isOpeningKeybindings, setIsOpeningKeybindings] = useState(false);
   const [openKeybindingsError, setOpenKeybindingsError] = useState<string | null>(null);
+  const [isOpeningAppearanceConfig, setIsOpeningAppearanceConfig] = useState(false);
+  const [openAppearanceConfigError, setOpenAppearanceConfigError] = useState<string | null>(null);
   const [customModelInputByProvider, setCustomModelInputByProvider] = useState<
     Record<ProviderKind, string>
   >({
@@ -105,6 +107,7 @@ function SettingsRouteView() {
   const codexHomePath = settings.codexHomePath;
   const codexServiceTier = settings.codexServiceTier;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
+  const appearanceConfigPath = serverConfigQuery.data?.appearanceConfigPath ?? null;
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
@@ -122,6 +125,23 @@ function SettingsRouteView() {
         setIsOpeningKeybindings(false);
       });
   }, [keybindingsConfigPath]);
+
+  const openAppearanceConfigFile = useCallback(() => {
+    if (!appearanceConfigPath) return;
+    setOpenAppearanceConfigError(null);
+    setIsOpeningAppearanceConfig(true);
+    const api = ensureNativeApi();
+    void api.shell
+      .openInEditor(appearanceConfigPath, preferredTerminalEditor())
+      .catch((error) => {
+        setOpenAppearanceConfigError(
+          error instanceof Error ? error.message : "Unable to open appearance config file.",
+        );
+      })
+      .finally(() => {
+        setIsOpeningAppearanceConfig(false);
+      });
+  }, [appearanceConfigPath]);
 
   const addCustomModel = useCallback((provider: ProviderKind) => {
     const customModelInput = customModelInputByProvider[provider];
@@ -228,7 +248,7 @@ function SettingsRouteView() {
                         <span className="text-xs">{option.description}</span>
                       </span>
                       {selected ? (
-                        <span className="rounded bg-primary/14 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                        <span className="rounded bg-primary/14 px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-primary">
                           Selected
                         </span>
                       ) : null}
@@ -240,6 +260,36 @@ function SettingsRouteView() {
               <p className="mt-4 text-xs text-muted-foreground">
                 Active theme: <span className="font-medium text-foreground">{resolvedTheme}</span>
               </p>
+
+              <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/60 p-4">
+                <div>
+                  <p className="text-xs font-medium text-foreground">Appearance config</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Edit <code>appearance.json</code> directly to change font family and size.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-foreground">Config file path</p>
+                    <p className="mt-1 break-all font-mono text-[0.6875rem] text-muted-foreground">
+                      {appearanceConfigPath ?? "Resolving appearance path..."}
+                    </p>
+                  </div>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    disabled={!appearanceConfigPath || isOpeningAppearanceConfig}
+                    onClick={openAppearanceConfigFile}
+                  >
+                    {isOpeningAppearanceConfig ? "Opening..." : "Open appearance.json"}
+                  </Button>
+                </div>
+
+                {openAppearanceConfigError ? (
+                  <p className="text-xs text-destructive">{openAppearanceConfigError}</p>
+                ) : null}
+              </div>
             </section>
 
             <section className="rounded-2xl border border-border bg-card p-5">
@@ -532,7 +582,7 @@ function SettingsRouteView() {
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground">Config file path</p>
-                    <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                    <p className="mt-1 break-all font-mono text-[0.6875rem] text-muted-foreground">
                       {keybindingsConfigPath ?? "Resolving keybindings path..."}
                     </p>
                   </div>

@@ -169,6 +169,7 @@ const ServerConfigLive = (input: CliInput) =>
       const staticDir = devUrl ? undefined : yield* cliConfig.resolveStaticDir;
       const { join } = yield* Path.Path;
       const keybindingsConfigPath = join(stateDir, "keybindings.json");
+      const appearanceConfigPath = join(stateDir, "appearance.json");
       const host =
         Option.getOrUndefined(input.host) ??
         env.host ??
@@ -179,6 +180,7 @@ const ServerConfigLive = (input: CliInput) =>
         port,
         cwd: cliConfig.cwd,
         keybindingsConfigPath,
+        appearanceConfigPath,
         host,
         stateDir,
         staticDir,

@@ -1177,7 +1177,7 @@ export default function Sidebar() {
                                   )}
                                   {threadStatus && (
                                     <span
-                                      className={`inline-flex items-center gap-1 text-[10px] ${threadStatus.colorClass}`}
+                                      className={`inline-flex items-center gap-1 text-[0.625rem] ${threadStatus.colorClass}`}
                                     >
                                       <span
                                         className={`h-1.5 w-1.5 rounded-full ${threadStatus.dotClass} ${
@@ -1238,7 +1238,7 @@ export default function Sidebar() {
                                     </span>
                                   )}
                                   <span
-                                    className={`text-[10px] ${
+                                    className={`text-[0.625rem] ${
                                       isActive ? "text-foreground/65" : "text-muted-foreground/40"
                                     }`}
                                   >
@@ -1255,7 +1255,7 @@ export default function Sidebar() {
                             <SidebarMenuSubButton
                               render={<button type="button" />}
                               size="sm"
-                              className="h-6 w-full translate-x-0 justify-start px-2 text-left text-[10px] text-muted-foreground/60 hover:bg-accent hover:text-muted-foreground/80"
+                              className="h-6 w-full translate-x-0 justify-start px-2 text-left text-[0.625rem] text-muted-foreground/60 hover:bg-accent hover:text-muted-foreground/80"
                               onClick={() => {
                                 expandThreadListForProject(project.id);
                               }}
@@ -1269,7 +1269,7 @@ export default function Sidebar() {
                             <SidebarMenuSubButton
                               render={<button type="button" />}
                               size="sm"
-                              className="h-6 w-full translate-x-0 justify-start px-2 text-left text-[10px] text-muted-foreground/60 hover:bg-accent hover:text-muted-foreground/80"
+                              className="h-6 w-full translate-x-0 justify-start px-2 text-left text-[0.625rem] text-muted-foreground/60 hover:bg-accent hover:text-muted-foreground/80"
                               onClick={() => {
                                 collapseThreadListForProject(project.id);
                               }}
@@ -1300,7 +1300,7 @@ export default function Sidebar() {
       <SidebarFooter className="gap-0 p-3">
         {addingProject ? (
           <>
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            <p className="mb-2 text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground/70">
               Add project
             </p>
             <input

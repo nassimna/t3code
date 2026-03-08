@@ -526,7 +526,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
         <BotIcon className="size-4 text-muted-foreground/80" />
       ) : null}
       {props.item.type === "model" ? (
-        <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+        <Badge variant="outline" className="px-1.5 py-0 text-[0.625rem]">
           model
         </Badge>
       ) : null}
@@ -3544,7 +3544,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           />
                         </button>
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-muted-foreground/70">
+                        <div className="flex h-full w-full items-center justify-center px-1 text-center text-[0.625rem] text-muted-foreground/70">
                           {image.name}
                         </div>
                       )}
@@ -4020,7 +4020,7 @@ const ChatHeader = memo(function ChatHeader({
           </Badge>
         )}
         {activeProjectName && !isGitRepo && (
-          <Badge variant="outline" className="shrink-0 text-[10px] text-amber-700">
+          <Badge variant="outline" className="shrink-0 text-[0.625rem] text-amber-700">
             No Git
           </Badge>
         )}
@@ -4463,11 +4463,11 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
             ) : (
               <FolderClosedIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
             )}
-            <span className="truncate font-mono text-[11px] text-muted-foreground/90 group-hover:text-foreground/90">
+            <span className="truncate font-mono text-[0.6875rem] text-muted-foreground/90 group-hover:text-foreground/90">
               {node.name}
             </span>
             {hasNonZeroStat(node.stat) && (
-              <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums">
+              <span className="ml-auto shrink-0 font-mono text-[0.625rem] tabular-nums">
                 <DiffStatLabel additions={node.stat.additions} deletions={node.stat.deletions} />
               </span>
             )}
@@ -4496,11 +4496,11 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
           theme={resolvedTheme}
           className="size-3.5 text-muted-foreground/70"
         />
-        <span className="truncate font-mono text-[11px] text-muted-foreground/80 group-hover:text-foreground/90">
+        <span className="truncate font-mono text-[0.6875rem] text-muted-foreground/80 group-hover:text-foreground/90">
           {node.name}
         </span>
         {node.stat && (
-          <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums">
+          <span className="ml-auto shrink-0 font-mono text-[0.625rem] tabular-nums">
             <DiffStatLabel additions={node.stat.additions} deletions={node.stat.deletions} />
           </span>
         )}
@@ -4980,13 +4980,13 @@ const MessagesTimeline = memo(function MessagesTimeline({
           return (
             <div className="rounded-lg border border-border/80 bg-card/45 px-3 py-2">
               <div className="mb-1.5 flex items-center justify-between gap-3">
-                <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/65">
+                <p className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/65">
                   {groupLabel}
                 </p>
                 {hasOverflow && (
                   <button
                     type="button"
-                    className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/55 transition-colors duration-150 hover:text-muted-foreground/80"
+                    className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/55 transition-colors duration-150 hover:text-muted-foreground/80"
                     onClick={() => onToggleWorkGroup(groupId)}
                   >
                     {isExpanded ? "Show less" : `Show ${hiddenCount} more`}
@@ -4998,11 +4998,11 @@ const MessagesTimeline = memo(function MessagesTimeline({
                   <div key={`work-row:${workEntry.id}`} className="flex items-start gap-2 py-0.5">
                     <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/30" />
                     <div className="min-w-0 flex-1 py-[2px]">
-                      <p className={`text-[11px] leading-relaxed ${workToneClass(workEntry.tone)}`}>
+                      <p className={`text-[0.6875rem] leading-relaxed ${workToneClass(workEntry.tone)}`}>
                         {workEntry.label}
                       </p>
                       {workEntry.command && (
-                        <pre className="mt-1 overflow-x-auto rounded-md border border-border/70 bg-background/80 px-2 py-1 font-mono text-[11px] leading-relaxed text-foreground/80">
+                        <pre className="mt-1 overflow-x-auto rounded-md border border-border/70 bg-background/80 px-2 py-1 font-mono text-[0.6875rem] leading-relaxed text-foreground/80">
                           {workEntry.command}
                         </pre>
                       )}
@@ -5011,14 +5011,14 @@ const MessagesTimeline = memo(function MessagesTimeline({
                           {workEntry.changedFiles.slice(0, 6).map((filePath) => (
                             <span
                               key={`${workEntry.id}:${filePath}`}
-                              className="rounded-md border border-border/70 bg-background/65 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/85"
+                              className="rounded-md border border-border/70 bg-background/65 px-1.5 py-0.5 font-mono text-[0.625rem] text-muted-foreground/85"
                               title={filePath}
                             >
                               {filePath}
                             </span>
                           ))}
                           {workEntry.changedFiles.length > 6 && (
-                            <span className="px-1 text-[10px] text-muted-foreground/65">
+                            <span className="px-1 text-[0.625rem] text-muted-foreground/65">
                               +{workEntry.changedFiles.length - 6} more
                             </span>
                           )}
@@ -5027,7 +5027,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
                       {workEntry.detail &&
                         (!workEntry.command || workEntry.detail !== workEntry.command) && (
                           <p
-                            className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75"
+                            className="mt-1 text-[0.6875rem] leading-relaxed text-muted-foreground/75"
                             title={workEntry.detail}
                           >
                             {workEntry.detail}
@@ -5077,7 +5077,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
                               />
                             </button>
                           ) : (
-                            <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[11px] text-muted-foreground/70">
+                            <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[0.6875rem] text-muted-foreground/70">
                               {image.name}
                             </div>
                           )}
@@ -5107,7 +5107,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
                       </Button>
                     )}
                   </div>
-                  <p className="text-right text-[10px] text-muted-foreground/30">
+                  <p className="text-right text-[0.625rem] text-muted-foreground/30">
                     {formatTimestamp(row.message.createdAt)}
                   </p>
                 </div>
@@ -5125,7 +5125,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
               {row.showCompletionDivider && (
                 <div className="my-3 flex items-center gap-3">
                   <span className="h-px flex-1 bg-border" />
-                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80">
+                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[0.625rem] uppercase tracking-[0.14em] text-muted-foreground/80">
                     {completionSummary ? `Response • ${completionSummary}` : "Response"}
                   </span>
                   <span className="h-px flex-1 bg-border" />
@@ -5149,7 +5149,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
                   return (
                     <div className="mt-2 rounded-lg border border-border/80 bg-card/45 p-2.5">
                       <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/65">
+                        <p className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/65">
                           <span>Changed files ({changedFileCountLabel})</span>
                           {hasNonZeroStat(summaryStat) && (
                             <>
@@ -5193,7 +5193,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
                     </div>
                   );
                 })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
+                <p className="mt-1.5 text-[0.625rem] text-muted-foreground/30">
                   {formatMessageMeta(
                     row.message.createdAt,
                     row.message.streaming
@@ -5219,7 +5219,7 @@ const MessagesTimeline = memo(function MessagesTimeline({
       {row.kind === "working" && (
         <div className="flex items-center gap-2 py-0.5 pl-1.5">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/30" />
-          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground/70">
+          <div className="flex items-center gap-2 pt-1 text-[0.6875rem] text-muted-foreground/70">
             <span className="inline-flex items-center gap-[3px]">
               <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse" />
               <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
@@ -5451,7 +5451,7 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                 )}
               />
               <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80 uppercase tracking-[0.08em]">
+              <span className="ms-auto text-[0.6875rem] text-muted-foreground/80 uppercase tracking-[0.08em]">
                 Coming soon
               </span>
             </MenuItem>
@@ -5464,7 +5464,7 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             <MenuItem key={option.id} disabled>
               <OptionIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />
               <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80 uppercase tracking-[0.08em]">
+              <span className="ms-auto text-[0.6875rem] text-muted-foreground/80 uppercase tracking-[0.08em]">
                 Coming soon
               </span>
             </MenuItem>

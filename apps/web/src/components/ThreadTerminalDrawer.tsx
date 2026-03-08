@@ -25,6 +25,7 @@ import {
   MAX_THREAD_TERMINAL_COUNT,
   type ThreadTerminalGroup,
 } from "../types";
+import { useResolvedAppearance } from "~/appearance";
 import { readNativeApi } from "~/nativeApi";
 
 const MIN_DRAWER_HEIGHT = 180;
@@ -130,6 +131,7 @@ function TerminalViewport({
   resizeEpoch,
   drawerHeight,
 }: TerminalViewportProps) {
+  const appearance = useResolvedAppearance();
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -150,9 +152,9 @@ function TerminalViewport({
     const terminal = new Terminal({
       cursorBlink: true,
       lineHeight: 1.2,
-      fontSize: 12,
+      fontSize: appearance.terminalFontSizePx,
       scrollback: 5_000,
-      fontFamily: '"SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      fontFamily: appearance.monoFontFamily,
       theme: terminalThemeFromApp(),
     });
     terminal.loadAddon(fitAddon);
@@ -393,6 +395,15 @@ function TerminalViewport({
     // it is only read at mount time and must not trigger terminal teardown/recreation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd, runtimeEnv, terminalId, threadId]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+
+    terminal.options.fontFamily = appearance.monoFontFamily;
+    terminal.options.fontSize = appearance.terminalFontSizePx;
+    fitAddonRef.current?.fit();
+  }, [appearance.monoFontFamily, appearance.terminalFontSizePx]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -882,7 +893,7 @@ export default function ThreadTerminalDrawer({
                       {showGroupHeaders && (
                         <button
                           type="button"
-                          className={`flex w-full items-center rounded px-1 py-0.5 text-[10px] uppercase tracking-[0.08em] ${
+                          className={`flex w-full items-center rounded px-1 py-0.5 text-[0.625rem] uppercase tracking-[0.08em] ${
                             isGroupActive
                               ? "bg-accent/70 text-foreground"
                               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -906,14 +917,14 @@ export default function ThreadTerminalDrawer({
                           return (
                             <div
                               key={terminalId}
-                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-[11px] ${
+                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-[0.6875rem] ${
                                 isActive
                                   ? "bg-accent text-foreground"
                                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                               }`}
                             >
                               {showGroupHeaders && (
-                                <span className="text-[10px] text-muted-foreground/80">└</span>
+                                <span className="text-[0.625rem] text-muted-foreground/80">└</span>
                               )}
                               <button
                                 type="button"

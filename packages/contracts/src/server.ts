@@ -1,27 +1,33 @@
 import { Schema } from "effect";
+import { AppearanceConfigIssue, ResolvedAppearanceConfig } from "./appearance";
 import { IsoDateTime, TrimmedNonEmptyString } from "./baseSchemas";
 import { KeybindingRule, ResolvedKeybindingsConfig } from "./keybindings";
 import { EditorId } from "./editor";
 import { ProviderKind } from "./orchestration";
 
-const KeybindingsMalformedConfigIssue = Schema.Struct({
+export const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
   message: TrimmedNonEmptyString,
 });
 
-const KeybindingsInvalidEntryIssue = Schema.Struct({
+export const KeybindingsInvalidEntryIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.invalid-entry"),
   message: TrimmedNonEmptyString,
   index: Schema.Number,
 });
 
-export const ServerConfigIssue = Schema.Union([
+export const KeybindingsConfigIssue = Schema.Union([
   KeybindingsMalformedConfigIssue,
   KeybindingsInvalidEntryIssue,
 ]);
-export type ServerConfigIssue = typeof ServerConfigIssue.Type;
+export type KeybindingsConfigIssue = typeof KeybindingsConfigIssue.Type;
+export const ServerConfigIssue = KeybindingsConfigIssue;
+export type ServerConfigIssue = KeybindingsConfigIssue;
 
-const ServerConfigIssues = Schema.Array(ServerConfigIssue);
+const KeybindingsConfigIssues = Schema.Array(KeybindingsConfigIssue);
+const AppearanceConfigIssues = Schema.Array(AppearanceConfigIssue);
+export const ServerConfigSection = Schema.Literals(["keybindings", "appearance"]);
+export type ServerConfigSection = typeof ServerConfigSection.Type;
 
 export const ServerProviderStatusState = Schema.Literals(["ready", "warning", "error"]);
 export type ServerProviderStatusState = typeof ServerProviderStatusState.Type;
@@ -48,8 +54,11 @@ const ServerProviderStatuses = Schema.Array(ServerProviderStatus);
 export const ServerConfig = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   keybindingsConfigPath: TrimmedNonEmptyString,
+  appearanceConfigPath: TrimmedNonEmptyString,
   keybindings: ResolvedKeybindingsConfig,
-  issues: ServerConfigIssues,
+  appearance: ResolvedAppearanceConfig,
+  keybindingsIssues: KeybindingsConfigIssues,
+  appearanceIssues: AppearanceConfigIssues,
   providers: ServerProviderStatuses,
   availableEditors: Schema.Array(EditorId),
 });
@@ -60,12 +69,14 @@ export type ServerUpsertKeybindingInput = typeof ServerUpsertKeybindingInput.Typ
 
 export const ServerUpsertKeybindingResult = Schema.Struct({
   keybindings: ResolvedKeybindingsConfig,
-  issues: ServerConfigIssues,
+  keybindingsIssues: KeybindingsConfigIssues,
 });
 export type ServerUpsertKeybindingResult = typeof ServerUpsertKeybindingResult.Type;
 
 export const ServerConfigUpdatedPayload = Schema.Struct({
-  issues: ServerConfigIssues,
+  changedSections: Schema.Array(ServerConfigSection),
+  keybindingsIssues: KeybindingsConfigIssues,
+  appearanceIssues: AppearanceConfigIssues,
   providers: ServerProviderStatuses,
 });
 export type ServerConfigUpdatedPayload = typeof ServerConfigUpdatedPayload.Type;
