@@ -550,6 +550,13 @@ const ThreadContextWindowSetCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadContextWindowClearCommand = Schema.Struct({
+  type: Schema.Literal("thread.context-window.clear"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  createdAt: IsoDateTime,
+});
+
 const ThreadTurnDiffCompleteCommand = Schema.Struct({
   type: Schema.Literal("thread.turn.diff.complete"),
   commandId: CommandId,
@@ -586,6 +593,7 @@ const InternalOrchestrationCommand = Schema.Union([
   ThreadMessageAssistantCompleteCommand,
   ThreadProposedPlanUpsertCommand,
   ThreadContextWindowSetCommand,
+  ThreadContextWindowClearCommand,
   ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
   ThreadRevertCompleteCommand,
@@ -618,6 +626,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.session-set",
   "thread.proposed-plan-upserted",
   "thread.context-window-set",
+  "thread.context-window-cleared",
   "thread.turn-diff-completed",
   "thread.activity-appended",
 ]);
@@ -775,6 +784,11 @@ export const ThreadContextWindowSetPayload = Schema.Struct({
   contextWindow: OrchestrationContextWindow,
 });
 
+export const ThreadContextWindowClearedPayload = Schema.Struct({
+  threadId: ThreadId,
+  clearedAt: IsoDateTime,
+});
+
 export const ThreadTurnDiffCompletedPayload = Schema.Struct({
   threadId: ThreadId,
   turnId: TurnId,
@@ -924,6 +938,11 @@ export const OrchestrationEvent = Schema.Union([
   }),
   Schema.Struct({
     ...EventBaseFields,
+    type: Schema.Literal("thread.context-window-cleared"),
+    payload: ThreadContextWindowClearedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
     type: Schema.Literal("thread.turn-diff-completed"),
     payload: ThreadTurnDiffCompletedPayload,
   }),
@@ -1030,6 +1049,11 @@ export const OrchestrationPersistedEvent = Schema.Union([
     ...PersistedEventBaseFields,
     eventType: Schema.Literal("thread.context-window-set"),
     payload: ThreadContextWindowSetPayload,
+  }),
+  Schema.Struct({
+    ...PersistedEventBaseFields,
+    eventType: Schema.Literal("thread.context-window-cleared"),
+    payload: ThreadContextWindowClearedPayload,
   }),
   Schema.Struct({
     ...PersistedEventBaseFields,
