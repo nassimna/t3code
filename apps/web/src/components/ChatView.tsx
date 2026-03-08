@@ -4043,34 +4043,50 @@ export default function ChatView({ threadId }: ChatViewProps) {
                     <span className="text-muted-foreground/70 text-xs">Preparing worktree...</span>
                   ) : null}
                   {activePendingProgress ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {activePendingProgress.questionIndex > 0 ? (
                         <Button
-                          size="sm"
+                          size="icon-sm"
                           variant="outline"
                           className="rounded-full"
                           onClick={onPreviousActivePendingUserInputQuestion}
                           disabled={activePendingIsResponding}
+                          aria-label="Previous question"
                         >
-                          Previous
+                          <ChevronLeftIcon aria-hidden="true" className="size-4" />
                         </Button>
                       ) : null}
                       <Button
                         type="submit"
-                        size="sm"
-                        className="rounded-full px-4"
+                        size={activePendingProgress.isLastQuestion ? "sm" : "icon-sm"}
+                        className={cn(
+                          "rounded-full",
+                          activePendingProgress.isLastQuestion ? "px-3" : undefined,
+                        )}
                         disabled={
                           activePendingIsResponding ||
                           (activePendingProgress.isLastQuestion
                             ? !activePendingResolvedAnswers
                             : !activePendingProgress.canAdvance)
                         }
+                        aria-label={
+                          activePendingProgress.isLastQuestion
+                            ? undefined
+                            : "Next question"
+                        }
                       >
                         {activePendingIsResponding
                           ? "Submitting..."
                           : activePendingProgress.isLastQuestion
-                            ? "Submit answers"
-                            : "Next question"}
+                            ? (
+                                <>
+                                  <CheckIcon aria-hidden="true" className="size-4" />
+                                  <span>Submit</span>
+                                </>
+                              )
+                            : (
+                                <ChevronRightIcon aria-hidden="true" className="size-4" />
+                              )}
                       </Button>
                     </div>
                   ) : phase === "running" ? (
