@@ -472,6 +472,18 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       sessions.clear();
     });
 
+  const getComposerCapabilities: ProviderAdapterShape<
+    ProviderAdapterError
+  >["getComposerCapabilities"] = () =>
+    Effect.succeed({
+      provider: "codex",
+      skillTrigger: "$",
+      supportsStructuredPromptItems: true,
+    });
+
+  const listSkills: ProviderAdapterShape<ProviderAdapterError>["listSkills"] = () =>
+    Effect.succeed({ entries: [] });
+
   const adapter: ProviderAdapterShape<ProviderAdapterError> = {
     provider,
     capabilities: {
@@ -487,6 +499,8 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
     hasSession,
     readThread,
     rollbackThread,
+    getComposerCapabilities,
+    listSkills,
     stopAll,
     streamEvents: Stream.fromQueue(runtimeEvents),
   };

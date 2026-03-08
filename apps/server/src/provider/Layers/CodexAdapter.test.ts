@@ -204,6 +204,7 @@ sessionErrorLayer("CodexAdapterLive session errors", (it) => {
         .sendTurn({
           threadId: asThreadId("sess-missing"),
           input: "hello",
+          inlineItems: [],
           attachments: [],
         })
         .pipe(Effect.result);
@@ -232,6 +233,7 @@ sessionErrorLayer("CodexAdapterLive session errors", (it) => {
         adapter.sendTurn({
           threadId: asThreadId("sess-missing"),
           input: "hello",
+          inlineItems: [],
           model: "gpt-5.3-codex",
           modelOptions: {
             codex: {

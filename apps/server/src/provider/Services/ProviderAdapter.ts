@@ -9,8 +9,12 @@
  */
 import type {
   ApprovalRequestId,
+  ProviderComposerCapabilities,
+  ProviderComposerCapabilitiesInput,
   ProviderApprovalDecision,
   ProviderKind,
+  ProviderListSkillsResolvedInput,
+  ProviderListSkillsResult,
   ProviderUserInputAnswers,
   ProviderRuntimeEvent,
   ProviderSendTurnInput,
@@ -110,6 +114,20 @@ export interface ProviderAdapterShape<TError> {
   readonly readThread: (
     threadId: ThreadId,
   ) => Effect.Effect<ProviderThreadSnapshot, TError>;
+
+  /**
+   * Read provider-native composer capabilities for this adapter.
+   */
+  readonly getComposerCapabilities: (
+    input: ProviderComposerCapabilitiesInput,
+  ) => Effect.Effect<ProviderComposerCapabilities, TError>;
+
+  /**
+   * List provider-native skills for the resolved composer cwd.
+   */
+  readonly listSkills: (
+    input: ProviderListSkillsResolvedInput,
+  ) => Effect.Effect<ProviderListSkillsResult, TError>;
 
   /**
    * Roll back a provider thread by N turns.

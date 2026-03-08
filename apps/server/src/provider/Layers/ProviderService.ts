@@ -12,7 +12,9 @@
 import {
   NonNegativeInt,
   ThreadId,
+  ProviderComposerCapabilitiesInput,
   ProviderInterruptTurnInput,
+  ProviderListSkillsResolvedInput,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
   ProviderSendTurnInput,
@@ -453,6 +455,32 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
     const getCapabilities: ProviderServiceShape["getCapabilities"] = (provider) =>
       registry.getByProvider(provider).pipe(Effect.map((adapter) => adapter.capabilities));
 
+    const getComposerCapabilities: ProviderServiceShape["getComposerCapabilities"] = (rawInput) =>
+      Effect.gen(function* () {
+        const input = yield* decodeInputOrValidationError({
+          operation: "ProviderService.getComposerCapabilities",
+          schema: ProviderComposerCapabilitiesInput,
+          payload: rawInput,
+        });
+        const provider = input.provider ?? "codex";
+        const adapter = yield* registry.getByProvider(provider);
+        return yield* adapter.getComposerCapabilities({
+          ...input,
+          provider,
+        });
+      });
+
+    const listSkills: ProviderServiceShape["listSkills"] = (rawInput) =>
+      Effect.gen(function* () {
+        const input = yield* decodeInputOrValidationError({
+          operation: "ProviderService.listSkills",
+          schema: ProviderListSkillsResolvedInput,
+          payload: rawInput,
+        });
+        const adapter = yield* registry.getByProvider(input.provider);
+        return yield* adapter.listSkills(input);
+      });
+
     const rollbackConversation: ProviderServiceShape["rollbackConversation"] = (rawInput) =>
       Effect.gen(function* () {
         const input = yield* decodeInputOrValidationError({
@@ -516,6 +544,8 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       stopSession,
       listSessions,
       getCapabilities,
+      getComposerCapabilities,
+      listSkills,
       rollbackConversation,
       streamEvents: Stream.fromPubSub(runtimeEventPubSub),
     } satisfies ProviderServiceShape;

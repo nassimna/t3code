@@ -307,6 +307,31 @@ function resolveWsRpc(tag: string): unknown {
       truncated: false,
     };
   }
+  if (tag === WS_METHODS.providersGetComposerCapabilities) {
+    return {
+      provider: "codex",
+      skillTrigger: "$",
+      supportsStructuredPromptItems: true,
+    };
+  }
+  if (tag === WS_METHODS.providersListSkills) {
+    return {
+      entries: [
+        {
+          entryType: "skill",
+          name: "feature-dev",
+          path: "/skills/feature-dev",
+          description: "Guided feature implementation workflow.",
+        },
+        {
+          entryType: "skill",
+          name: "simplify",
+          path: "/skills/simplify",
+          description: "Refactor code for clarity.",
+        },
+      ],
+    };
+  }
   return {};
 }
 

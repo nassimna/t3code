@@ -1350,9 +1350,11 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
 
         return yield* Effect.tryPromise({
           try: () => {
+            const inlineItems = input.inlineItems ?? [];
             const managerInput = {
               threadId: input.threadId,
               ...(input.input !== undefined ? { input: input.input } : {}),
+              ...(inlineItems.length > 0 ? { inlineItems } : {}),
               ...(input.model !== undefined ? { model: input.model } : {}),
               ...(input.serviceTier !== undefined ? { serviceTier: input.serviceTier } : {}),
               ...(input.modelOptions?.codex?.reasoningEffort !== undefined
@@ -1373,6 +1375,30 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
             threadId: input.threadId,
           })),
         );
+      });
+
+    const getComposerCapabilities: CodexAdapterShape["getComposerCapabilities"] = (_input) =>
+      Effect.tryPromise({
+        try: () => manager.getComposerCapabilities(),
+        catch: (cause) =>
+          new ProviderAdapterRequestError({
+            provider: PROVIDER,
+            method: "providers.getComposerCapabilities",
+            detail: toMessage(cause, "Failed to read Codex composer capabilities."),
+            cause,
+          }),
+      });
+
+    const listSkills: CodexAdapterShape["listSkills"] = (input) =>
+      Effect.tryPromise({
+        try: () =>
+          manager.listSkills({
+            threadId: input.threadId,
+            cwd: input.cwd,
+            ...(input.forceReload !== undefined ? { forceReload: input.forceReload } : {}),
+            ...(input.providerOptions !== undefined ? { providerOptions: input.providerOptions } : {}),
+          }),
+        catch: (cause) => toRequestError(input.threadId, "skills/list", cause),
       });
 
     const interruptTurn: CodexAdapterShape["interruptTurn"] = (threadId, turnId) =>
@@ -1497,6 +1523,8 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
       },
       startSession,
       sendTurn,
+      getComposerCapabilities,
+      listSkills,
       interruptTurn,
       readThread,
       rollbackThread,

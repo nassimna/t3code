@@ -165,6 +165,20 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
       Effect.succeed({ threadId, turns: [] }),
   );
 
+  const getComposerCapabilities = vi.fn(() =>
+    Effect.succeed({
+      provider: "codex" as const,
+      skillTrigger: "$",
+      supportsStructuredPromptItems: true,
+    }),
+  );
+
+  const listSkills = vi.fn(() =>
+    Effect.succeed({
+      entries: [],
+    }),
+  );
+
   const stopAll = vi.fn(
     (): Effect.Effect<void, ProviderAdapterError> =>
       Effect.sync(() => {
@@ -186,6 +200,8 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     listSessions,
     hasSession,
     readThread,
+    getComposerCapabilities,
+    listSkills,
     rollbackThread,
     stopAll,
     streamEvents: Stream.fromPubSub(runtimeEventPubSub),
@@ -207,6 +223,8 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     listSessions,
     hasSession,
     readThread,
+    getComposerCapabilities,
+    listSkills,
     rollbackThread,
     stopAll,
   };
@@ -437,6 +455,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
       yield* provider.sendTurn({
         threadId: session.threadId,
         input: "hello",
+        inlineItems: [],
         attachments: [],
       });
       assert.equal(routing.codex.sendTurn.mock.calls.length, 1);
@@ -480,6 +499,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
         provider.sendTurn({
           threadId: session.threadId,
           input: "after-stop",
+          inlineItems: [],
           attachments: [],
         }),
       );
@@ -551,6 +571,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
       yield* provider.sendTurn({
         threadId: initial.threadId,
         input: "resume",
+        inlineItems: [],
         attachments: [],
       });
 
@@ -608,6 +629,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
       yield* provider.sendTurn({
         threadId: session.threadId,
         input: "hello",
+        inlineItems: [],
         attachments: [],
       });
 

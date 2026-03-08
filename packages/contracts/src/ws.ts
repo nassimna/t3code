@@ -29,6 +29,10 @@ import {
   TerminalWriteInput,
 } from "./terminal";
 import { KeybindingRule } from "./keybindings";
+import {
+  ProviderComposerCapabilitiesInput,
+  ProviderListSkillsInput,
+} from "./provider";
 import { ProjectSearchEntriesInput, ProjectWriteFileInput } from "./project";
 import { OpenInEditorInput } from "./editor";
 
@@ -41,6 +45,10 @@ export const WS_METHODS = {
   projectsRemove: "projects.remove",
   projectsSearchEntries: "projects.searchEntries",
   projectsWriteFile: "projects.writeFile",
+
+  // Provider composer methods
+  providersGetComposerCapabilities: "providers.getComposerCapabilities",
+  providersListSkills: "providers.listSkills",
 
   // Shell methods
   shellOpenInEditor: "shell.openInEditor",
@@ -103,6 +111,10 @@ const WebSocketRequestBody = Schema.Union([
   // Project Search
   tagRequestBody(WS_METHODS.projectsSearchEntries, ProjectSearchEntriesInput),
   tagRequestBody(WS_METHODS.projectsWriteFile, ProjectWriteFileInput),
+
+  // Provider composer methods
+  tagRequestBody(WS_METHODS.providersGetComposerCapabilities, ProviderComposerCapabilitiesInput),
+  tagRequestBody(WS_METHODS.providersListSkills, ProviderListSkillsInput),
 
   // Shell methods
   tagRequestBody(WS_METHODS.shellOpenInEditor, OpenInEditorInput),

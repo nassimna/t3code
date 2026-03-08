@@ -41,6 +41,12 @@ import type {
   OrchestrationReadModel,
 } from "./orchestration";
 import { EditorId } from "./editor";
+import type {
+  ProviderComposerCapabilities,
+  ProviderComposerCapabilitiesInput,
+  ProviderListSkillsInput,
+  ProviderListSkillsResult,
+} from "./provider";
 
 export interface ContextMenuItem<T extends string = string> {
   id: T;
@@ -110,6 +116,12 @@ export interface NativeApi {
   projects: {
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+  };
+  providers: {
+    getComposerCapabilities: (
+      input: ProviderComposerCapabilitiesInput,
+    ) => Promise<ProviderComposerCapabilities>;
+    listSkills: (input: ProviderListSkillsInput) => Promise<ProviderListSkillsResult>;
   };
   shell: {
     openInEditor: (cwd: string, editor: EditorId) => Promise<void>;

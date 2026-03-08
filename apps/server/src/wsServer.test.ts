@@ -1315,6 +1315,13 @@ describe("WebSocket Server", () => {
       stopSession: () => unsupported(),
       listSessions: () => Effect.succeed([]),
       getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+      getComposerCapabilities: () =>
+        Effect.succeed({
+          provider: "codex",
+          skillTrigger: "$",
+          supportsStructuredPromptItems: true,
+        }),
+      listSkills: () => Effect.succeed({ entries: [] }),
       rollbackConversation: () => unsupported(),
       streamEvents: Stream.fromPubSub(runtimeEventPubSub),
     };
@@ -1410,6 +1417,88 @@ describe("WebSocket Server", () => {
     expect(domainEvent.type).toBe("thread.message-sent");
     expect(domainEvent.payload.messageId).toBe("assistant:item-1");
     expect(domainEvent.payload.text).toBe("hello from runtime");
+  });
+
+  it("routes provider composer RPC methods", async () => {
+    const getComposerCapabilities = vi.fn(() =>
+      Effect.succeed({
+        provider: "codex" as const,
+        skillTrigger: "$",
+        supportsStructuredPromptItems: true,
+      }),
+    );
+    const listSkills = vi.fn(() =>
+      Effect.succeed({
+        entries: [
+          {
+            entryType: "skill",
+            name: "feature-dev",
+            path: "/skills/feature-dev",
+            description: "Guided feature implementation workflow.",
+          },
+        ],
+      }),
+    );
+    const unsupported = () => Effect.die(new Error("Unsupported provider call in test")) as never;
+    const providerService: ProviderServiceShape = {
+      startSession: () => unsupported(),
+      sendTurn: () => unsupported(),
+      interruptTurn: () => unsupported(),
+      respondToRequest: () => unsupported(),
+      respondToUserInput: () => unsupported(),
+      stopSession: () => unsupported(),
+      listSessions: () => Effect.succeed([]),
+      getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+      getComposerCapabilities,
+      listSkills,
+      rollbackConversation: () => unsupported(),
+      streamEvents: Stream.empty,
+    };
+    const providerLayer = Layer.succeed(ProviderService, providerService);
+
+    server = await createTestServer({ providerLayer });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const ws = await connectWs(port);
+    connections.push(ws);
+    await waitForMessage(ws);
+
+    const capabilitiesResponse = await sendRequest(ws, WS_METHODS.providersGetComposerCapabilities, {
+      threadId: "thread-composer",
+      cwd: "/repo/project",
+    });
+    expect(capabilitiesResponse.result).toEqual({
+      provider: "codex",
+      skillTrigger: "$",
+      supportsStructuredPromptItems: true,
+    });
+
+    const skillsResponse = await sendRequest(ws, WS_METHODS.providersListSkills, {
+      threadId: "thread-composer",
+      cwd: "/repo/project",
+    });
+    expect(skillsResponse.result).toEqual({
+      entries: [
+        {
+          entryType: "skill",
+          name: "feature-dev",
+          path: "/skills/feature-dev",
+          description: "Guided feature implementation workflow.",
+        },
+      ],
+    });
+
+    expect(getComposerCapabilities).toHaveBeenCalledWith({
+      threadId: asThreadId("thread-composer"),
+      provider: "codex",
+      cwd: "/repo/project",
+    });
+    expect(listSkills).toHaveBeenCalledWith({
+      threadId: asThreadId("thread-composer"),
+      provider: "codex",
+      cwd: "/repo/project",
+    });
   });
 
   it("routes terminal RPC methods and broadcasts terminal events", async () => {

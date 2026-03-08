@@ -12,8 +12,12 @@
  * @module ProviderService
  */
 import type {
+  ProviderComposerCapabilities,
+  ProviderComposerCapabilitiesInput,
   ProviderInterruptTurnInput,
   ProviderKind,
+  ProviderListSkillsResolvedInput,
+  ProviderListSkillsResult,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
   ProviderRuntimeEvent,
@@ -90,6 +94,20 @@ export interface ProviderServiceShape {
   readonly getCapabilities: (
     provider: ProviderKind,
   ) => Effect.Effect<ProviderAdapterCapabilities, ProviderServiceError>;
+
+  /**
+   * Read provider-native composer capabilities.
+   */
+  readonly getComposerCapabilities: (
+    input: ProviderComposerCapabilitiesInput,
+  ) => Effect.Effect<ProviderComposerCapabilities, ProviderServiceError>;
+
+  /**
+   * List provider-native skills for a resolved cwd.
+   */
+  readonly listSkills: (
+    input: ProviderListSkillsResolvedInput,
+  ) => Effect.Effect<ProviderListSkillsResult, ProviderServiceError>;
 
   /**
    * Roll back provider conversation state by a number of turns.
