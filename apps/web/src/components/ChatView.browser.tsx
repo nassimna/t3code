@@ -2,12 +2,15 @@
 import "../index.css";
 
 import {
+  EventId,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
   type OrchestrationReadModel,
+  type OrchestrationThreadActivity,
   type ProjectId,
   type ServerConfig,
   type ThreadId,
+  TurnId,
   type WsWelcomePayload,
   WS_CHANNELS,
   WS_METHODS,
@@ -85,6 +88,29 @@ interface MountedChatView {
   cleanup: () => Promise<void>;
   measureUserRow: (targetMessageId: MessageId) => Promise<UserRowMeasurement>;
   setViewport: (viewport: ViewportSpec) => Promise<void>;
+}
+
+function makeActivity(overrides: {
+  id?: string;
+  createdAt?: string;
+  kind?: string;
+  summary?: string;
+  tone?: OrchestrationThreadActivity["tone"];
+  payload?: Record<string, unknown>;
+  turnId?: string;
+  sequence?: number;
+}): OrchestrationThreadActivity {
+  const payload = overrides.payload ?? {};
+  return {
+    id: EventId.makeUnsafe(overrides.id ?? crypto.randomUUID()),
+    createdAt: overrides.createdAt ?? NOW_ISO,
+    kind: overrides.kind ?? "tool.started",
+    summary: overrides.summary ?? "Tool call",
+    tone: overrides.tone ?? "tool",
+    payload,
+    turnId: overrides.turnId ? TurnId.makeUnsafe(overrides.turnId) : null,
+    ...(overrides.sequence !== undefined ? { sequence: overrides.sequence } : {}),
+  };
 }
 
 function isoAt(offsetSeconds: number): string {
@@ -253,6 +279,62 @@ function createDraftOnlySnapshot(): OrchestrationReadModel {
   return {
     ...snapshot,
     threads: [],
+  };
+}
+
+function createPendingUserInputSnapshot(): OrchestrationReadModel {
+  const snapshot = createSnapshotForTargetUser({
+    targetMessageId: "msg-user-pending-input-target" as MessageId,
+    targetText: "pending input target",
+  });
+  const thread = snapshot.threads[0];
+  if (!thread) {
+    throw new Error("expected snapshot thread");
+  }
+
+  return {
+    ...snapshot,
+    threads: [
+      {
+        ...thread,
+        activities: [
+          makeActivity({
+            id: "pending-user-input-open",
+            createdAt: NOW_ISO,
+            kind: "user-input.requested",
+            summary: "User input requested",
+            tone: "info",
+            payload: {
+              requestId: "req-user-input-browser",
+              questions: [
+                {
+                  id: "sandbox_mode",
+                  header: "Sandbox",
+                  question: "Which mode should be used?",
+                  options: [
+                    {
+                      label: "workspace-write",
+                      description: "Allow workspace writes only",
+                    },
+                  ],
+                },
+                {
+                  id: "approval_policy",
+                  header: "Approvals",
+                  question: "How should approvals work?",
+                  options: [
+                    {
+                      label: "never",
+                      description: "Do not ask for approvals",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        ],
+      },
+    ],
   };
 }
 
@@ -862,6 +944,75 @@ describe("ChatView timeline estimator parity (full app)", () => {
           expect((await waitForInteractionModeButton("Chat")).title).toContain("enter plan mode");
         },
         { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders compact questionnaire navigation controls within the composer at narrow widths", async () => {
+    const mounted = await mountChatView({
+      viewport: TEXT_VIEWPORT_MATRIX[3],
+      snapshot: createPendingUserInputSnapshot(),
+    });
+
+    try {
+      const composerForm = await waitForElement(
+        () => document.querySelector<HTMLFormElement>('[data-chat-composer-form="true"]'),
+        "Unable to find composer form.",
+      );
+      const firstOptionButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "workspace-write",
+          ) as HTMLButtonElement | null,
+        "Unable to find first questionnaire option.",
+      );
+      firstOptionButton.click();
+      await waitForLayout();
+
+      const nextButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('button[aria-label="Next question"]'),
+        "Unable to find next question button.",
+      );
+      expect(nextButton.textContent?.trim() ?? "").toBe("");
+      expect(
+        Array.from(document.querySelectorAll("button")).some(
+          (button) => button.textContent?.trim() === "Next question",
+        ),
+      ).toBe(false);
+      expect(nextButton.getBoundingClientRect().right).toBeLessThanOrEqual(
+        composerForm.getBoundingClientRect().right + 1,
+      );
+
+      nextButton.click();
+      await waitForLayout();
+
+      const previousButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('button[aria-label="Previous question"]'),
+        "Unable to find previous question button.",
+      );
+      const submitButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "Submit",
+          ) as HTMLButtonElement | null,
+        "Unable to find submit button.",
+      );
+
+      expect(
+        Array.from(document.querySelectorAll("button")).some(
+          (button) =>
+            button.textContent?.trim() === "Previous" || button.textContent?.trim() === "Submit answers",
+        ),
+      ).toBe(false);
+      expect(previousButton.textContent?.trim() ?? "").toBe("");
+      expect(previousButton.getBoundingClientRect().right).toBeLessThanOrEqual(
+        composerForm.getBoundingClientRect().right + 1,
+      );
+      expect(submitButton.querySelector("svg")).toBeTruthy();
+      expect(submitButton.getBoundingClientRect().right).toBeLessThanOrEqual(
+        composerForm.getBoundingClientRect().right + 1,
       );
     } finally {
       await mounted.cleanup();
