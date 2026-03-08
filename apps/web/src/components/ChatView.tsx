@@ -74,6 +74,7 @@ import {
   parseStandaloneComposerSlashCommand,
   replaceTextRange,
 } from "../composer-logic";
+import { prepareComposerSubmissionForSend } from "../composer-submission";
 import {
   derivePendingApprovals,
   derivePendingUserInputs,
@@ -535,38 +536,6 @@ function replaceInlineItemsForRange(input: {
   }
   nextItems.sort((left, right) => left.start - right.start || left.end - right.end);
   return nextItems;
-}
-
-function trimComposerSubmission(input: {
-  text: string;
-  inlineItems: ReadonlyArray<ComposerInlineItem>;
-}): { text: string; inlineItems: ComposerInlineItem[] } {
-  const text = input.text;
-  const leadingTrimmedLength = text.length - text.trimStart().length;
-  const trailingTrimmedLength = text.trimEnd().length;
-  const trimmedText = text.slice(leadingTrimmedLength, trailingTrimmedLength);
-  if (trimmedText.length === text.length) {
-    return {
-      text: trimmedText,
-      inlineItems: input.inlineItems.map((item) => ({ ...item })),
-    };
-  }
-  const trimmedInlineItems = input.inlineItems.flatMap((item) => {
-    if (item.start < leadingTrimmedLength || item.end > trailingTrimmedLength) {
-      return [];
-    }
-    return [
-      {
-        ...item,
-        start: item.start - leadingTrimmedLength,
-        end: item.end - leadingTrimmedLength,
-      },
-    ];
-  });
-  return {
-    text: trimmedText,
-    inlineItems: trimmedInlineItems,
-  };
 }
 
 const VscodeEntryIcon = memo(function VscodeEntryIcon(props: {
@@ -2616,7 +2585,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       return;
     }
     const composerSnapshot = readComposerSnapshot();
-    const submission = trimComposerSubmission({
+    const submission = prepareComposerSubmissionForSend({
       text: composerSnapshot.value,
       inlineItems: composerSnapshot.inlineItems,
     });
