@@ -2,7 +2,7 @@ const ASSISTANT_CHARS_PER_LINE_FALLBACK = 72;
 const USER_CHARS_PER_LINE_FALLBACK = 56;
 const LINE_HEIGHT_PX = 22;
 const ASSISTANT_BASE_HEIGHT_PX = 78;
-const USER_BASE_HEIGHT_PX = 96;
+const USER_BASE_HEIGHT_PX = 84;
 const ATTACHMENTS_PER_ROW = 2;
 // Attachment thumbnails render with `max-h-[220px]` plus ~8px row gap.
 const USER_ATTACHMENT_ROW_HEIGHT_PX = 228;
