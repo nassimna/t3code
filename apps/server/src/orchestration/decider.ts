@@ -310,6 +310,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           interactionMode:
             readModel.threads.find((entry) => entry.id === command.threadId)?.interactionMode ??
             command.interactionMode,
+          ...(command.planModeContext !== undefined
+            ? { planModeContext: command.planModeContext }
+            : {}),
           createdAt: command.createdAt,
         },
       };
