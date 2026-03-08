@@ -18,6 +18,7 @@ import {
   ProviderApprovalPolicy,
   ProviderInteractionMode,
   ProviderKind,
+  ProviderPlanModeContext,
   ProviderRequestKind,
   ProviderSandboxMode,
   ProviderServiceTier,
@@ -136,6 +137,7 @@ export const ProviderSendTurnInput = Schema.Struct({
   inlineItems: Schema.optional(Schema.Array(ComposerInlineItem)).pipe(
     Schema.withDecodingDefault(() => []),
   ),
+  planModeContext: Schema.optional(ProviderPlanModeContext),
 });
 export type ProviderSendTurnInput = typeof ProviderSendTurnInput.Type;
 

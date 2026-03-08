@@ -79,6 +79,18 @@ describe("ProviderSendTurnInput", () => {
 
     expect(parsed.inlineItems).toEqual([]);
   });
+
+  it("accepts a plan mode context for plan turns", () => {
+    const parsed = decodeProviderSendTurnInput({
+      threadId: "thread-1",
+      input: "Plan this from scratch",
+      interactionMode: "plan",
+      planModeContext: "new",
+    });
+
+    expect(parsed.interactionMode).toBe("plan");
+    expect(parsed.planModeContext).toBe("new");
+  });
 });
 
 describe("Provider composer inputs", () => {

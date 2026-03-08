@@ -51,6 +51,8 @@ export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);
 export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
 export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";
+export const ProviderPlanModeContext = Schema.Literals(["new", "follow-up"]);
+export type ProviderPlanModeContext = typeof ProviderPlanModeContext.Type;
 export const ProviderRequestKind = Schema.Literals(["command", "file-read", "file-change"]);
 export type ProviderRequestKind = typeof ProviderRequestKind.Type;
 export const AssistantDeliveryMode = Schema.Literals(["buffered", "streaming"]);
@@ -403,6 +405,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(() => DEFAULT_PROVIDER_INTERACTION_MODE),
   ),
+  planModeContext: Schema.optional(ProviderPlanModeContext),
   createdAt: IsoDateTime,
 });
 
@@ -426,6 +429,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
+  planModeContext: Schema.optional(ProviderPlanModeContext),
   createdAt: IsoDateTime,
 });
 
@@ -730,6 +734,7 @@ export const ThreadTurnStartRequestedPayload = Schema.Struct({
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(() => DEFAULT_PROVIDER_INTERACTION_MODE),
   ),
+  planModeContext: Schema.optional(ProviderPlanModeContext),
   createdAt: IsoDateTime,
 });
 
