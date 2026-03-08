@@ -5048,57 +5048,56 @@ const MessagesTimeline = memo(function MessagesTimeline({
           const canRevertAgentWork = revertTurnCountByUserMessageId.has(row.message.id);
           return (
             <div className="flex justify-end">
-              <div className="group relative max-w-[80%] rounded-2xl rounded-br-sm border border-border bg-secondary px-4 py-3">
-                {userImages.length > 0 && (
-                  <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
-                    {userImages.map(
-                      (image: NonNullable<TimelineMessage["attachments"]>[number]) => (
-                        <div
-                          key={image.id}
-                          className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
-                        >
-                          {image.previewUrl ? (
-                            <button
-                              type="button"
-                              className="h-full w-full cursor-zoom-in"
-                              aria-label={`Preview ${image.name}`}
-                              onClick={() => {
-                                const preview = buildExpandedImagePreview(userImages, image.id);
-                                if (!preview) return;
-                                onImageExpand(preview);
-                              }}
-                            >
-                              <img
-                                src={image.previewUrl}
-                                alt={image.name}
-                                className="h-full max-h-[220px] w-full object-cover"
-                                onLoad={onTimelineImageLoad}
-                                onError={onTimelineImageLoad}
-                              />
-                            </button>
-                          ) : (
-                            <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[11px] text-muted-foreground/70">
-                              {image.name}
-                            </div>
-                          )}
-                        </div>
-                      ),
-                    )}
-                  </div>
-                )}
-                {row.message.text && (
-                  <pre
-                    data-chat-user-message-text="true"
-                    className={cn(
-                      "chat-composer-body-text m-0 whitespace-pre-wrap wrap-break-word text-foreground",
-                      (row.message.text || canRevertAgentWork) && "pe-16",
-                    )}
-                  >
-                    {row.message.text}
-                  </pre>
-                )}
+              <div className="group flex max-w-[78%] flex-col items-end">
+                <div className="rounded-xl rounded-br-sm border border-border bg-secondary px-3.5 py-2">
+                  {userImages.length > 0 && (
+                    <div className="mb-1.5 grid max-w-[420px] grid-cols-2 gap-2">
+                      {userImages.map(
+                        (image: NonNullable<TimelineMessage["attachments"]>[number]) => (
+                          <div
+                            key={image.id}
+                            className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
+                          >
+                            {image.previewUrl ? (
+                              <button
+                                type="button"
+                                className="h-full w-full cursor-zoom-in"
+                                aria-label={`Preview ${image.name}`}
+                                onClick={() => {
+                                  const preview = buildExpandedImagePreview(userImages, image.id);
+                                  if (!preview) return;
+                                  onImageExpand(preview);
+                                }}
+                              >
+                                <img
+                                  src={image.previewUrl}
+                                  alt={image.name}
+                                  className="h-full max-h-[220px] w-full object-cover"
+                                  onLoad={onTimelineImageLoad}
+                                  onError={onTimelineImageLoad}
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[0.6875rem] text-muted-foreground/70">
+                                {image.name}
+                              </div>
+                            )}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  {row.message.text && (
+                    <pre
+                      data-chat-user-message-text="true"
+                      className="chat-composer-body-text m-0 whitespace-pre-wrap wrap-break-word text-foreground"
+                    >
+                      {row.message.text}
+                    </pre>
+                  )}
+                </div>
                 {(row.message.text || canRevertAgentWork) && (
-                  <div className="pointer-events-none absolute right-3 bottom-3 flex items-center gap-1 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                  <div className="pointer-events-none mt-0 flex max-h-0 items-center justify-end gap-1 overflow-hidden opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:mt-1 group-hover:max-h-8 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:mt-1 group-focus-within:max-h-8 group-focus-within:opacity-100">
                     {row.message.text && <MessageCopyButton text={row.message.text} />}
                     {canRevertAgentWork && (
                       <Button
