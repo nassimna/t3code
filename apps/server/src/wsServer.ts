@@ -47,6 +47,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { createLogger } from "./logger";
 import { GitManager } from "./git/Services/GitManager.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
+import { Appearance } from "./appearance";
 import { Keybindings } from "./keybindings";
 import { searchWorkspaceEntries } from "./workspaceEntries";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
@@ -215,6 +216,7 @@ export type ServerRuntimeServices =
   | GitManager
   | GitCore
   | TerminalManager
+  | Appearance
   | Keybindings
   | Open
   | AnalyticsService;
@@ -241,6 +243,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
     port,
     cwd,
     keybindingsConfigPath,
+    appearanceConfigPath,
     staticDir,
     devUrl,
     authToken,
@@ -252,6 +255,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
 
   const gitManager = yield* GitManager;
   const terminalManager = yield* TerminalManager;
+  const appearanceManager = yield* Appearance;
   const keybindingsManager = yield* Keybindings;
   const providerHealth = yield* ProviderHealth;
   const git = yield* GitCore;
@@ -261,6 +265,15 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   yield* keybindingsManager.syncDefaultKeybindingsOnStartup.pipe(
     Effect.catch((error) =>
       Effect.logWarning("failed to sync keybindings defaults on startup", {
+        path: error.configPath,
+        detail: error.detail,
+        cause: error.cause,
+      }),
+    ),
+  );
+  yield* appearanceManager.syncDefaultAppearanceOnStartup.pipe(
+    Effect.catch((error) =>
+      Effect.logWarning("failed to sync appearance defaults on startup", {
         path: error.configPath,
         detail: error.detail,
         cause: error.cause,
@@ -630,7 +643,22 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       type: "push",
       channel: WS_CHANNELS.serverConfigUpdated,
       data: {
-        issues: event.issues,
+        changedSections: [...event.changedSections],
+        keybindingsIssues: event.issues,
+        appearanceIssues: [],
+        providers: providerStatuses,
+      },
+    }),
+  ).pipe(Effect.forkIn(subscriptionsScope));
+
+  yield* Stream.runForEach(appearanceManager.changes, (event) =>
+    broadcastPush({
+      type: "push",
+      channel: WS_CHANNELS.serverConfigUpdated,
+      data: {
+        changedSections: [...event.changedSections],
+        keybindingsIssues: [],
+        appearanceIssues: event.issues,
         providers: providerStatuses,
       },
     }),
@@ -877,12 +905,16 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       }
 
       case WS_METHODS.serverGetConfig:
+        const appearanceConfig = yield* appearanceManager.loadConfigState;
         const keybindingsConfig = yield* keybindingsManager.loadConfigState;
         return {
           cwd,
           keybindingsConfigPath,
+          appearanceConfigPath,
           keybindings: keybindingsConfig.keybindings,
-          issues: keybindingsConfig.issues,
+          appearance: appearanceConfig.appearance,
+          keybindingsIssues: keybindingsConfig.issues,
+          appearanceIssues: appearanceConfig.issues,
           providers: providerStatuses,
           availableEditors,
         };
@@ -890,7 +922,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       case WS_METHODS.serverUpsertKeybinding: {
         const body = stripRequestTag(request.body);
         const keybindingsConfig = yield* keybindingsManager.upsertKeybindingRule(body);
-        return { keybindings: keybindingsConfig, issues: [] };
+        return { keybindings: keybindingsConfig, keybindingsIssues: [] };
       }
 
       default: {

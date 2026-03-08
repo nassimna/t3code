@@ -7,8 +7,9 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { setResolvedAppearance } from "../appearance";
 import { APP_DISPLAY_NAME } from "../branding";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
@@ -49,6 +50,7 @@ function RootRouteView() {
   return (
     <ToastProvider>
       <AnchoredToastProvider>
+        <ServerAppearanceSync />
         <EventRouter />
         <DesktopProjectBootstrap />
         <Outlet />
@@ -69,7 +71,7 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
       </div>
 
       <section className="relative w-full max-w-xl rounded-2xl border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
-        <p className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+        <p className="text-[0.6875rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
           {APP_DISPLAY_NAME}
         </p>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -138,7 +140,6 @@ function EventRouter() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const pathnameRef = useRef(pathname);
-  const lastConfigIssuesSignatureRef = useRef<string | null>(null);
   const handledBootstrapThreadIdRef = useRef<string | null>(null);
 
   pathnameRef.current = pathname;
@@ -237,46 +238,62 @@ function EventRouter() {
       })().catch(() => undefined);
     });
     const unsubServerConfigUpdated = onServerConfigUpdated((payload) => {
-      const signature = JSON.stringify(payload.issues);
-      if (lastConfigIssuesSignatureRef.current === signature) {
-        return;
-      }
-      lastConfigIssuesSignatureRef.current = signature;
-
       void queryClient.invalidateQueries({ queryKey: serverQueryKeys.config() });
-      const issue = payload.issues.find((entry) => entry.kind.startsWith("keybindings."));
-      if (!issue) {
+
+      const openServerConfigPath = (configPath: "keybindingsConfigPath" | "appearanceConfigPath") => {
+        void queryClient
+          .ensureQueryData(serverConfigQueryOptions())
+          .then((config) =>
+            api.shell.openInEditor(config[configPath], preferredTerminalEditor()),
+          )
+          .catch((error) => {
+            toastManager.add({
+              type: "error",
+              title: "Unable to open config file",
+              description: error instanceof Error ? error.message : "Unknown error opening file.",
+            });
+          });
+      };
+
+      if (payload.changedSections.includes("keybindings") && payload.keybindingsIssues.length === 0) {
         toastManager.add({
           type: "success",
           title: "Keybindings updated",
           description: "Keybindings configuration reloaded successfully.",
         });
-        return;
       }
 
-      toastManager.add({
-        type: "warning",
-        title: "Invalid keybindings configuration",
-        description: issue.message,
-        actionProps: {
-          children: "Open keybindings.json",
-          onClick: () => {
-            void queryClient
-              .ensureQueryData(serverConfigQueryOptions())
-              .then((config) =>
-                api.shell.openInEditor(config.keybindingsConfigPath, preferredTerminalEditor()),
-              )
-              .catch((error) => {
-                toastManager.add({
-                  type: "error",
-                  title: "Unable to open keybindings file",
-                  description:
-                    error instanceof Error ? error.message : "Unknown error opening file.",
-                });
-              });
+      if (payload.changedSections.includes("keybindings") && payload.keybindingsIssues[0]) {
+        toastManager.add({
+          type: "warning",
+          title: "Invalid keybindings configuration",
+          description: payload.keybindingsIssues[0].message,
+          actionProps: {
+            children: "Open keybindings.json",
+            onClick: () => openServerConfigPath("keybindingsConfigPath"),
           },
-        },
-      });
+        });
+      }
+
+      if (payload.changedSections.includes("appearance") && payload.appearanceIssues.length === 0) {
+        toastManager.add({
+          type: "success",
+          title: "Appearance updated",
+          description: "Appearance configuration reloaded.",
+        });
+      }
+
+      if (payload.changedSections.includes("appearance") && payload.appearanceIssues[0]) {
+        toastManager.add({
+          type: "warning",
+          title: "Invalid appearance configuration",
+          description: payload.appearanceIssues[0].message,
+          actionProps: {
+            children: "Open appearance.json",
+            onClick: () => openServerConfigPath("appearanceConfigPath"),
+          },
+        });
+      }
     });
     return () => {
       disposed = true;
@@ -292,6 +309,19 @@ function EventRouter() {
     setProjectExpanded,
     syncServerReadModel,
   ]);
+
+  return null;
+}
+
+function ServerAppearanceSync() {
+  const serverConfigQuery = useQuery(serverConfigQueryOptions());
+
+  useEffect(() => {
+    if (!serverConfigQuery.data?.appearance) {
+      return;
+    }
+    setResolvedAppearance(serverConfigQuery.data.appearance);
+  }, [serverConfigQuery.data?.appearance]);
 
   return null;
 }

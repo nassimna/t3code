@@ -21,6 +21,7 @@ export interface ServerConfigShape {
   readonly host: string | undefined;
   readonly cwd: string;
   readonly keybindingsConfigPath: string;
+  readonly appearanceConfigPath: string;
   readonly stateDir: string;
   readonly staticDir: string | undefined;
   readonly devUrl: URL | undefined;
@@ -51,6 +52,7 @@ export class ServerConfig extends ServiceMap.Service<ServerConfig, ServerConfigS
           host: undefined,
           authToken: undefined,
           keybindingsConfigPath: path.join(statedir, "keybindings.json"),
+          appearanceConfigPath: path.join(statedir, "appearance.json"),
           staticDir: undefined,
           devUrl: undefined,
           noBrowser: false,

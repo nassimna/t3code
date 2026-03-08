@@ -29,6 +29,7 @@ import {
   type ResolvedKeybindingsConfig,
   type WsPush,
 } from "@t3tools/contracts";
+import { DEFAULT_APPEARANCE_CONFIG } from "./appearance";
 import { compileResolvedKeybindingRule, DEFAULT_KEYBINDINGS } from "./keybindings";
 import type {
   TerminalClearInput,
@@ -417,6 +418,7 @@ describe("WebSocket Server", () => {
       host: undefined,
       cwd: options.cwd ?? "/test/project",
       keybindingsConfigPath: path.join(stateDir, "keybindings.json"),
+      appearanceConfigPath: path.join(stateDir, "appearance.json"),
       stateDir,
       staticDir: options.staticDir,
       devUrl: options.devUrl ? new URL(options.devUrl) : undefined,
@@ -736,6 +738,7 @@ describe("WebSocket Server", () => {
   it("responds to server.getConfig", async () => {
     const stateDir = makeTempDir("t3code-state-get-config-");
     const keybindingsPath = path.join(stateDir, "keybindings.json");
+    const appearancePath = path.join(stateDir, "appearance.json");
     fs.writeFileSync(keybindingsPath, "[]", "utf8");
 
     server = await createTestServer({ cwd: "/my/workspace", stateDir });
@@ -753,8 +756,11 @@ describe("WebSocket Server", () => {
     expect(response.result).toEqual({
       cwd: "/my/workspace",
       keybindingsConfigPath: keybindingsPath,
+      appearanceConfigPath: appearancePath,
       keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
-      issues: [],
+      appearance: DEFAULT_APPEARANCE_CONFIG,
+      keybindingsIssues: [],
+      appearanceIssues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
     });
@@ -764,6 +770,7 @@ describe("WebSocket Server", () => {
   it("bootstraps default keybindings file when missing", async () => {
     const stateDir = makeTempDir("t3code-state-bootstrap-keybindings-");
     const keybindingsPath = path.join(stateDir, "keybindings.json");
+    const appearancePath = path.join(stateDir, "appearance.json");
     expect(fs.existsSync(keybindingsPath)).toBe(false);
 
     server = await createTestServer({ cwd: "/my/workspace", stateDir });
@@ -779,8 +786,11 @@ describe("WebSocket Server", () => {
     expect(response.result).toEqual({
       cwd: "/my/workspace",
       keybindingsConfigPath: keybindingsPath,
+      appearanceConfigPath: appearancePath,
       keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
-      issues: [],
+      appearance: DEFAULT_APPEARANCE_CONFIG,
+      keybindingsIssues: [],
+      appearanceIssues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
     });
@@ -795,6 +805,7 @@ describe("WebSocket Server", () => {
   it("falls back to defaults and reports malformed keybindings config issues", async () => {
     const stateDir = makeTempDir("t3code-state-malformed-keybindings-");
     const keybindingsPath = path.join(stateDir, "keybindings.json");
+    const appearancePath = path.join(stateDir, "appearance.json");
     fs.writeFileSync(keybindingsPath, "{ not-json", "utf8");
 
     server = await createTestServer({ cwd: "/my/workspace", stateDir });
@@ -810,13 +821,16 @@ describe("WebSocket Server", () => {
     expect(response.result).toEqual({
       cwd: "/my/workspace",
       keybindingsConfigPath: keybindingsPath,
+      appearanceConfigPath: appearancePath,
       keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
-      issues: [
+      appearance: DEFAULT_APPEARANCE_CONFIG,
+      keybindingsIssues: [
         {
           kind: "keybindings.malformed-config",
           message: expect.stringContaining("expected JSON array"),
         },
       ],
+      appearanceIssues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
     });
@@ -827,6 +841,7 @@ describe("WebSocket Server", () => {
   it("ignores invalid keybinding entries but keeps valid entries and reports issues", async () => {
     const stateDir = makeTempDir("t3code-state-partial-invalid-keybindings-");
     const keybindingsPath = path.join(stateDir, "keybindings.json");
+    const appearancePath = path.join(stateDir, "appearance.json");
     fs.writeFileSync(
       keybindingsPath,
       JSON.stringify([
@@ -850,14 +865,19 @@ describe("WebSocket Server", () => {
     const result = response.result as {
       cwd: string;
       keybindingsConfigPath: string;
+      appearanceConfigPath: string;
       keybindings: ResolvedKeybindingsConfig;
-      issues: Array<{ kind: string; index?: number; message: string }>;
+      appearance: typeof DEFAULT_APPEARANCE_CONFIG;
+      keybindingsIssues: Array<{ kind: string; index?: number; message: string }>;
+      appearanceIssues: Array<{ kind: string; message: string }>;
       providers: ReadonlyArray<ServerProviderStatus>;
       availableEditors: unknown;
     };
     expect(result.cwd).toBe("/my/workspace");
     expect(result.keybindingsConfigPath).toBe(keybindingsPath);
-    expect(result.issues).toEqual([
+    expect(result.appearanceConfigPath).toBe(appearancePath);
+    expect(result.appearance).toEqual(DEFAULT_APPEARANCE_CONFIG);
+    expect(result.keybindingsIssues).toEqual([
       {
         kind: "keybindings.invalid-entry",
         index: 1,
@@ -869,6 +889,7 @@ describe("WebSocket Server", () => {
         message: expect.any(String),
       },
     ]);
+    expect(result.appearanceIssues).toEqual([]);
     expect(result.keybindings).toHaveLength(DEFAULT_RESOLVED_KEYBINDINGS.length);
     expect(result.keybindings.some((entry) => entry.command === "terminal.toggle")).toBe(true);
     expect(result.keybindings.some((entry) => entry.command === "terminal.new")).toBe(true);
@@ -879,7 +900,9 @@ describe("WebSocket Server", () => {
   it("pushes server.configUpdated issues when keybindings file changes", async () => {
     const stateDir = makeTempDir("t3code-state-keybindings-watch-");
     const keybindingsPath = path.join(stateDir, "keybindings.json");
+    const appearancePath = path.join(stateDir, "appearance.json");
     fs.writeFileSync(keybindingsPath, "[]", "utf8");
+    fs.writeFileSync(appearancePath, JSON.stringify(DEFAULT_APPEARANCE_CONFIG), "utf8");
 
     server = await createTestServer({ cwd: "/my/workspace", stateDir });
     const addr = server.address();
@@ -894,13 +917,17 @@ describe("WebSocket Server", () => {
       ws,
       WS_CHANNELS.serverConfigUpdated,
       (push) =>
-        Array.isArray((push.data as { issues?: unknown[] }).issues) &&
-        Boolean((push.data as { issues: Array<{ kind: string }> }).issues[0]) &&
-        (push.data as { issues: Array<{ kind: string }> }).issues[0]!.kind ===
+        Array.isArray((push.data as { keybindingsIssues?: unknown[] }).keybindingsIssues) &&
+        Boolean(
+          (push.data as { keybindingsIssues: Array<{ kind: string }> }).keybindingsIssues[0],
+        ) &&
+        (push.data as { keybindingsIssues: Array<{ kind: string }> }).keybindingsIssues[0]!.kind ===
           "keybindings.malformed-config",
     );
     expect(malformedPush.data).toEqual({
-      issues: [{ kind: "keybindings.malformed-config", message: expect.any(String) }],
+      changedSections: ["keybindings"],
+      keybindingsIssues: [{ kind: "keybindings.malformed-config", message: expect.any(String) }],
+      appearanceIssues: [],
       providers: defaultProviderStatuses,
     });
 
@@ -909,10 +936,121 @@ describe("WebSocket Server", () => {
       ws,
       WS_CHANNELS.serverConfigUpdated,
       (push) =>
-        Array.isArray((push.data as { issues?: unknown[] }).issues) &&
-        (push.data as { issues: unknown[] }).issues.length === 0,
+        Array.isArray((push.data as { changedSections?: unknown[] }).changedSections) &&
+        (push.data as { changedSections: string[] }).changedSections.includes("keybindings") &&
+        Array.isArray((push.data as { keybindingsIssues?: unknown[] }).keybindingsIssues) &&
+        (push.data as { keybindingsIssues: unknown[] }).keybindingsIssues.length === 0,
     );
-    expect(successPush.data).toEqual({ issues: [], providers: defaultProviderStatuses });
+    expect(successPush.data).toEqual({
+      changedSections: ["keybindings"],
+      keybindingsIssues: [],
+      appearanceIssues: [],
+      providers: defaultProviderStatuses,
+    });
+  });
+
+  it("bootstraps default appearance file when missing", async () => {
+    const stateDir = makeTempDir("t3code-state-bootstrap-appearance-");
+    const appearancePath = path.join(stateDir, "appearance.json");
+    expect(fs.existsSync(appearancePath)).toBe(false);
+
+    server = await createTestServer({ cwd: "/my/workspace", stateDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const ws = await connectWs(port);
+    connections.push(ws);
+    await waitForMessage(ws);
+
+    const response = await sendRequest(ws, WS_METHODS.serverGetConfig);
+    expect(response.error).toBeUndefined();
+    expect((response.result as { appearance: unknown }).appearance).toEqual(DEFAULT_APPEARANCE_CONFIG);
+    expect(JSON.parse(fs.readFileSync(appearancePath, "utf8"))).toEqual(DEFAULT_APPEARANCE_CONFIG);
+  });
+
+  it("bootstraps default appearance file when the state directory does not exist yet", async () => {
+    const stateDirRoot = makeTempDir("t3code-state-bootstrap-appearance-parent-");
+    const stateDir = path.join(stateDirRoot, "fresh", "state");
+    const appearancePath = path.join(stateDir, "appearance.json");
+    expect(fs.existsSync(stateDir)).toBe(false);
+    expect(fs.existsSync(appearancePath)).toBe(false);
+
+    server = await createTestServer({ cwd: "/my/workspace", stateDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const ws = await connectWs(port);
+    connections.push(ws);
+    await waitForMessage(ws);
+
+    const response = await sendRequest(ws, WS_METHODS.serverGetConfig);
+    expect(response.error).toBeUndefined();
+    expect(response.result).toEqual({
+      cwd: "/my/workspace",
+      keybindingsConfigPath: path.join(stateDir, "keybindings.json"),
+      appearanceConfigPath: appearancePath,
+      keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
+      appearance: DEFAULT_APPEARANCE_CONFIG,
+      keybindingsIssues: [],
+      appearanceIssues: [],
+      providers: defaultProviderStatuses,
+      availableEditors: expect.any(Array),
+    });
+    expectAvailableEditors((response.result as { availableEditors: unknown }).availableEditors);
+    expect(fs.existsSync(stateDir)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(appearancePath, "utf8"))).toEqual(DEFAULT_APPEARANCE_CONFIG);
+  });
+
+  it("pushes server.configUpdated issues when appearance file changes", async () => {
+    const stateDir = makeTempDir("t3code-state-appearance-watch-");
+    const appearancePath = path.join(stateDir, "appearance.json");
+    const keybindingsPath = path.join(stateDir, "keybindings.json");
+    fs.writeFileSync(keybindingsPath, "[]", "utf8");
+    fs.writeFileSync(appearancePath, JSON.stringify(DEFAULT_APPEARANCE_CONFIG), "utf8");
+
+    server = await createTestServer({ cwd: "/my/workspace", stateDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const ws = await connectWs(port);
+    connections.push(ws);
+    await waitForMessage(ws);
+
+    fs.writeFileSync(appearancePath, "{ not-json", "utf8");
+    const malformedPush = await waitForPush(
+      ws,
+      WS_CHANNELS.serverConfigUpdated,
+      (push) =>
+        Array.isArray((push.data as { appearanceIssues?: unknown[] }).appearanceIssues) &&
+        Boolean(
+          (push.data as { appearanceIssues: Array<{ kind: string }> }).appearanceIssues[0],
+        ) &&
+        (push.data as { appearanceIssues: Array<{ kind: string }> }).appearanceIssues[0]!.kind ===
+          "appearance.malformed-config",
+    );
+    expect(malformedPush.data).toEqual({
+      changedSections: ["appearance"],
+      keybindingsIssues: [],
+      appearanceIssues: [{ kind: "appearance.malformed-config", message: expect.any(String) }],
+      providers: defaultProviderStatuses,
+    });
+
+    fs.writeFileSync(appearancePath, JSON.stringify(DEFAULT_APPEARANCE_CONFIG), "utf8");
+    const successPush = await waitForPush(
+      ws,
+      WS_CHANNELS.serverConfigUpdated,
+      (push) =>
+        Array.isArray((push.data as { changedSections?: unknown[] }).changedSections) &&
+        (push.data as { changedSections: string[] }).changedSections.includes("appearance") &&
+        Array.isArray((push.data as { appearanceIssues?: unknown[] }).appearanceIssues) &&
+        (push.data as { appearanceIssues: unknown[] }).appearanceIssues.length === 0,
+    );
+    expect(successPush.data).toEqual({
+      changedSections: ["appearance"],
+      keybindingsIssues: [],
+      appearanceIssues: [],
+      providers: defaultProviderStatuses,
+    });
   });
 
   it("routes shell.openInEditor through the injected open service", async () => {
@@ -970,8 +1108,11 @@ describe("WebSocket Server", () => {
     expect(response.result).toEqual({
       cwd: "/my/workspace",
       keybindingsConfigPath: keybindingsPath,
+      appearanceConfigPath: path.join(stateDir, "appearance.json"),
       keybindings: compileKeybindings(persistedConfig),
-      issues: [],
+      appearance: DEFAULT_APPEARANCE_CONFIG,
+      keybindingsIssues: [],
+      appearanceIssues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
     });
@@ -1010,7 +1151,7 @@ describe("WebSocket Server", () => {
     expect(persistedCommands.has("script.run-tests.run")).toBe(true);
     expect(upsertResponse.result).toEqual({
       keybindings: compileKeybindings(persistedConfig),
-      issues: [],
+      keybindingsIssues: [],
     });
 
     const configResponse = await sendRequest(ws, WS_METHODS.serverGetConfig);
@@ -1018,8 +1159,11 @@ describe("WebSocket Server", () => {
     expect(configResponse.result).toEqual({
       cwd: "/my/workspace",
       keybindingsConfigPath: keybindingsPath,
+      appearanceConfigPath: path.join(stateDir, "appearance.json"),
       keybindings: compileKeybindings(persistedConfig),
-      issues: [],
+      appearance: DEFAULT_APPEARANCE_CONFIG,
+      keybindingsIssues: [],
+      appearanceIssues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
     });

@@ -95,8 +95,18 @@ function createBaseServerConfig(): ServerConfig {
   return {
     cwd: "/repo/project",
     keybindingsConfigPath: "/repo/project/.t3code-keybindings.json",
+    appearanceConfigPath: "/repo/project/.t3code-appearance.json",
     keybindings: [],
-    issues: [],
+    appearance: {
+      uiFontFamily:
+        '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+      uiFontSizePx: 16,
+      monoFontFamily:
+        '"SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      terminalFontSizePx: 12,
+    },
+    keybindingsIssues: [],
+    appearanceIssues: [],
     providers: [
       {
         provider: "codex",

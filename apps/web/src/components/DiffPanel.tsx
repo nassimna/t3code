@@ -451,7 +451,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                   : "border-border/70 bg-background/70 text-muted-foreground/80 hover:border-border hover:text-foreground/80",
               )}
             >
-              <div className="text-[10px] leading-tight font-medium">All turns</div>
+              <div className="text-[0.625rem] leading-tight font-medium">All turns</div>
             </div>
           </button>
           {orderedTurnDiffSummaries.map((summary) => (
@@ -472,7 +472,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
                 )}
               >
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] leading-tight font-medium">
+                  <span className="text-[0.625rem] leading-tight font-medium">
                     Turn{" "}
                     {summary.checkpointTurnCount ??
                       inferredCheckpointTurnCountByTurnId[summary.turnId] ??
@@ -550,7 +550,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
           >
             {checkpointDiffError && !renderablePatch && (
               <div className="px-3">
-                <p className="mb-2 text-[11px] text-red-500/80">{checkpointDiffError}</p>
+                <p className="mb-2 text-[0.6875rem] text-red-500/80">{checkpointDiffError}</p>
               </div>
             )}
             {!renderablePatch ? (
@@ -608,8 +608,8 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             ) : (
               <div className="h-full overflow-auto p-2">
                 <div className="space-y-2">
-                  <p className="text-[11px] text-muted-foreground/75">{renderablePatch.reason}</p>
-                  <pre className="max-h-[72vh] overflow-auto rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
+                  <p className="text-[0.6875rem] text-muted-foreground/75">{renderablePatch.reason}</p>
+                  <pre className="max-h-[72vh] overflow-auto rounded-md border border-border/70 bg-background/70 p-3 font-mono text-[0.6875rem] leading-relaxed text-muted-foreground/90">
                     {renderablePatch.text}
                   </pre>
                 </div>

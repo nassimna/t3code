@@ -99,7 +99,7 @@ class ComposerMentionNode extends TextNode {
   override createDOM(_config: EditorConfig): HTMLElement {
     const dom = document.createElement("span");
     dom.className =
-      "inline-flex select-none items-center gap-1 rounded-md border border-border/70 bg-accent/40 px-1.5 py-px font-medium text-[12px] leading-[1.1] text-foreground align-middle";
+      "inline-flex select-none items-center gap-1 rounded-md border border-border/70 bg-accent/40 px-1.5 py-px font-medium text-[0.75rem] leading-[1.1] text-foreground align-middle";
     dom.contentEditable = "false";
     dom.setAttribute("spellcheck", "false");
     renderMentionChipDom(dom, this.__path);
@@ -746,7 +746,7 @@ function ComposerPromptEditorInner({
         contentEditable={
           <ContentEditable
             className={cn(
-              "block max-h-[200px] min-h-17.5 w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-[14px] leading-relaxed text-foreground focus:outline-none",
+              "block max-h-[200px] min-h-17.5 w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-[0.875rem] leading-relaxed text-foreground focus:outline-none",
               className,
             )}
             aria-placeholder={placeholder}
@@ -755,7 +755,7 @@ function ComposerPromptEditorInner({
           />
         }
         placeholder={
-          <div className="pointer-events-none absolute inset-0 text-[14px] leading-relaxed text-muted-foreground/35">
+          <div className="pointer-events-none absolute inset-0 text-[0.875rem] leading-relaxed text-muted-foreground/35">
             {placeholder}
           </div>
         }

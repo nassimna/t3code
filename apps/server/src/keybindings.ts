@@ -15,6 +15,7 @@ import {
   MAX_WHEN_EXPRESSION_DEPTH,
   ResolvedKeybindingRule,
   ResolvedKeybindingsConfig,
+  type ServerConfigSection,
   type ServerConfigIssue,
 } from "@t3tools/contracts";
 import { Mutable } from "effect/Types";
@@ -422,6 +423,7 @@ export interface KeybindingsConfigState {
 }
 
 export interface KeybindingsChangeEvent {
+  readonly changedSections: readonly ServerConfigSection[];
   readonly issues: readonly ServerConfigIssue[];
 }
 
@@ -511,7 +513,9 @@ const makeKeybindings = Effect.gen(function* () {
   const changesPubSub = yield* PubSub.unbounded<KeybindingsChangeEvent>();
 
   const emitChange = (issues: readonly ServerConfigIssue[]) =>
-    PubSub.publish(changesPubSub, { issues }).pipe(Effect.asVoid);
+    PubSub.publish(changesPubSub, { changedSections: ["keybindings"], issues }).pipe(
+      Effect.asVoid,
+    );
 
   const readConfigExists = fs.exists(keybindingsConfigPath).pipe(
     Effect.mapError(

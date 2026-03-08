@@ -25,6 +25,7 @@ import {
   MAX_THREAD_TERMINAL_COUNT,
   type ThreadTerminalGroup,
 } from "../types";
+import { useResolvedAppearance } from "~/appearance";
 import { readNativeApi } from "~/nativeApi";
 
 const MIN_DRAWER_HEIGHT = 180;
@@ -119,6 +120,31 @@ interface TerminalViewportProps {
   drawerHeight: number;
 }
 
+function fitTerminalAndSyncSize(params: {
+  api: ReturnType<typeof readNativeApi>;
+  terminal: Terminal | null;
+  fitAddon: FitAddon | null;
+  threadId: ThreadId;
+  terminalId: string;
+}) {
+  const { api, terminal, fitAddon, threadId, terminalId } = params;
+  if (!api || !terminal || !fitAddon) return;
+
+  const wasAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
+  fitAddon.fit();
+  if (wasAtBottom) {
+    terminal.scrollToBottom();
+  }
+  void api.terminal
+    .resize({
+      threadId,
+      terminalId,
+      cols: terminal.cols,
+      rows: terminal.rows,
+    })
+    .catch(() => undefined);
+}
+
 function TerminalViewport({
   threadId,
   terminalId,
@@ -130,6 +156,7 @@ function TerminalViewport({
   resizeEpoch,
   drawerHeight,
 }: TerminalViewportProps) {
+  const appearance = useResolvedAppearance();
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -150,9 +177,9 @@ function TerminalViewport({
     const terminal = new Terminal({
       cursorBlink: true,
       lineHeight: 1.2,
-      fontSize: 12,
+      fontSize: appearance.terminalFontSizePx,
       scrollback: 5_000,
-      fontFamily: '"SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      fontFamily: appearance.monoFontFamily,
       theme: terminalThemeFromApp(),
     });
     terminal.loadAddon(fitAddon);
@@ -358,23 +385,13 @@ function TerminalViewport({
     });
 
     const fitTimer = window.setTimeout(() => {
-      const activeTerminal = terminalRef.current;
-      const activeFitAddon = fitAddonRef.current;
-      if (!activeTerminal || !activeFitAddon) return;
-      const wasAtBottom =
-        activeTerminal.buffer.active.viewportY >= activeTerminal.buffer.active.baseY;
-      activeFitAddon.fit();
-      if (wasAtBottom) {
-        activeTerminal.scrollToBottom();
-      }
-      void api.terminal
-        .resize({
-          threadId,
-          terminalId,
-          cols: activeTerminal.cols,
-          rows: activeTerminal.rows,
-        })
-        .catch(() => undefined);
+      fitTerminalAndSyncSize({
+        api,
+        terminal: terminalRef.current,
+        fitAddon: fitAddonRef.current,
+        threadId,
+        terminalId,
+      });
     }, 30);
     void openTerminal();
 
@@ -395,6 +412,27 @@ function TerminalViewport({
   }, [cwd, runtimeEnv, terminalId, threadId]);
 
   useEffect(() => {
+    const api = readNativeApi();
+    const terminal = terminalRef.current;
+    if (!api || !terminal) return;
+
+    terminal.options.fontFamily = appearance.monoFontFamily;
+    terminal.options.fontSize = appearance.terminalFontSizePx;
+    fitTerminalAndSyncSize({
+      api,
+      terminal,
+      fitAddon: fitAddonRef.current,
+      threadId,
+      terminalId,
+    });
+  }, [
+    appearance.monoFontFamily,
+    appearance.terminalFontSizePx,
+    terminalId,
+    threadId,
+  ]);
+
+  useEffect(() => {
     if (!autoFocus) return;
     const terminal = terminalRef.current;
     if (!terminal) return;
@@ -411,20 +449,14 @@ function TerminalViewport({
     const terminal = terminalRef.current;
     const fitAddon = fitAddonRef.current;
     if (!api || !terminal || !fitAddon) return;
-    const wasAtBottom = terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
     const frame = window.requestAnimationFrame(() => {
-      fitAddon.fit();
-      if (wasAtBottom) {
-        terminal.scrollToBottom();
-      }
-      void api.terminal
-        .resize({
-          threadId,
-          terminalId,
-          cols: terminal.cols,
-          rows: terminal.rows,
-        })
-        .catch(() => undefined);
+      fitTerminalAndSyncSize({
+        api,
+        terminal,
+        fitAddon,
+        threadId,
+        terminalId,
+      });
     });
     return () => {
       window.cancelAnimationFrame(frame);
@@ -882,7 +914,7 @@ export default function ThreadTerminalDrawer({
                       {showGroupHeaders && (
                         <button
                           type="button"
-                          className={`flex w-full items-center rounded px-1 py-0.5 text-[10px] uppercase tracking-[0.08em] ${
+                          className={`flex w-full items-center rounded px-1 py-0.5 text-[0.625rem] uppercase tracking-[0.08em] ${
                             isGroupActive
                               ? "bg-accent/70 text-foreground"
                               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -906,14 +938,14 @@ export default function ThreadTerminalDrawer({
                           return (
                             <div
                               key={terminalId}
-                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-[11px] ${
+                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-[0.6875rem] ${
                                 isActive
                                   ? "bg-accent text-foreground"
                                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                               }`}
                             >
                               {showGroupHeaders && (
-                                <span className="text-[10px] text-muted-foreground/80">└</span>
+                                <span className="text-[0.625rem] text-muted-foreground/80">└</span>
                               )}
                               <button
                                 type="button"
