@@ -164,12 +164,18 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     ): Effect.Effect<{ threadId: ThreadId; turns: readonly [] }, ProviderAdapterError> =>
       Effect.succeed({ threadId, turns: [] }),
   );
+  const listActiveCommandExecutions = vi.fn(
+    (): Effect.Effect<readonly [], ProviderAdapterError> => Effect.succeed([] as const),
+  );
 
   const stopAll = vi.fn(
     (): Effect.Effect<void, ProviderAdapterError> =>
       Effect.sync(() => {
         sessions.clear();
       }),
+  );
+  const cleanBackgroundCommands = vi.fn(
+    (): Effect.Effect<void, ProviderAdapterError> => Effect.void,
   );
 
   const adapter: ProviderAdapterShape<ProviderAdapterError> = {
@@ -182,10 +188,12 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     interruptTurn,
     respondToRequest,
     respondToUserInput,
+    cleanBackgroundCommands,
     stopSession,
     listSessions,
     hasSession,
     readThread,
+    listActiveCommandExecutions,
     rollbackThread,
     stopAll,
     streamEvents: Stream.fromPubSub(runtimeEventPubSub),
@@ -203,10 +211,12 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
     interruptTurn,
     respondToRequest,
     respondToUserInput,
+    cleanBackgroundCommands,
     stopSession,
     listSessions,
     hasSession,
     readThread,
+    listActiveCommandExecutions,
     rollbackThread,
     stopAll,
   };

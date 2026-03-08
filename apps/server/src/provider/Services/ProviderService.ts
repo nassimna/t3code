@@ -12,6 +12,7 @@
  * @module ProviderService
  */
 import type {
+  ProviderCleanBackgroundCommandsInput,
   ProviderInterruptTurnInput,
   ProviderKind,
   ProviderRespondToRequestInput,
@@ -21,8 +22,11 @@ import type {
   ProviderSession,
   ProviderSessionStartInput,
   ProviderStopSessionInput,
+  ProviderItemId,
+  ThreadBackgroundCommandSummary,
   ThreadId,
   ProviderTurnStartResult,
+  TurnId,
 } from "@t3tools/contracts";
 import { ServiceMap } from "effect";
 import type { Effect, Stream } from "effect";
@@ -71,6 +75,13 @@ export interface ProviderServiceShape {
   ) => Effect.Effect<void, ProviderServiceError>;
 
   /**
+   * Stop all running background command executions for one thread.
+   */
+  readonly cleanBackgroundCommands: (
+    input: ProviderCleanBackgroundCommandsInput,
+  ) => Effect.Effect<void, ProviderServiceError>;
+
+  /**
    * Stop a provider session.
    */
   readonly stopSession: (
@@ -98,6 +109,31 @@ export interface ProviderServiceShape {
     readonly threadId: ThreadId;
     readonly numTurns: number;
   }) => Effect.Effect<void, ProviderServiceError>;
+
+  /**
+   * Read provider thread runtime state, including raw turns/items.
+   */
+  readonly readThread: (
+    threadId: ThreadId,
+  ) => Effect.Effect<
+    {
+      readonly threadId: ThreadId;
+      readonly turns: ReadonlyArray<{
+        readonly id: TurnId;
+        readonly status?: string;
+        readonly interruptedCommandExecutionItemIds?: ReadonlyArray<ProviderItemId>;
+        readonly items: ReadonlyArray<unknown>;
+      }>;
+    },
+    ProviderServiceError
+  >;
+
+  /**
+   * List active command-execution items currently kept alive by the provider runtime.
+   */
+  readonly listActiveCommandExecutions: (
+    threadId: ThreadId,
+  ) => Effect.Effect<ReadonlyArray<ThreadBackgroundCommandSummary>, ProviderServiceError>;
 
   /**
    * Canonical provider runtime event stream.

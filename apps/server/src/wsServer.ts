@@ -13,6 +13,8 @@ import Mime from "@effect/platform-node/Mime";
 import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
+  ProviderItemId,
+  ThreadRuntimeReadResult,
   type ClientOrchestrationCommand,
   type OrchestrationCommand,
   ORCHESTRATION_WS_CHANNELS,
@@ -20,6 +22,7 @@ import {
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
   ProjectId,
   ThreadId,
+  TurnId,
   TerminalEvent,
   WS_CHANNELS,
   WS_METHODS,
@@ -27,6 +30,7 @@ import {
   WsPush,
   WsResponse,
 } from "@t3tools/contracts";
+import { listBackgroundCommands, mergeBackgroundCommands } from "@t3tools/shared/backgroundCommands";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import {
   Cause,
@@ -254,6 +258,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const terminalManager = yield* TerminalManager;
   const keybindingsManager = yield* Keybindings;
   const providerHealth = yield* ProviderHealth;
+  const providerService = yield* ProviderService;
   const git = yield* GitCore;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -849,6 +854,32 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       case WS_METHODS.terminalOpen: {
         const body = stripRequestTag(request.body);
         return yield* terminalManager.open(body);
+      }
+
+      case WS_METHODS.threadRuntimeRead: {
+        const body = stripRequestTag(request.body);
+        const snapshot = yield* providerService.readThread(body.threadId);
+        const activeCommands = yield* providerService.listActiveCommandExecutions(body.threadId);
+        const mergedCommands = mergeBackgroundCommands(
+          listBackgroundCommands(snapshot).map((command) => ({
+            id: ProviderItemId.makeUnsafe(String(command.id)),
+            turnId: TurnId.makeUnsafe(String(command.turnId)),
+            command: command.command,
+            cwd: command.cwd,
+            processId: command.processId,
+            previewLine: command.previewLine,
+          })),
+          activeCommands,
+        );
+        return {
+          threadId: body.threadId,
+          backgroundCommands: mergedCommands,
+        } satisfies ThreadRuntimeReadResult;
+      }
+
+      case WS_METHODS.threadRuntimeCleanBackgroundCommands: {
+        const body = stripRequestTag(request.body);
+        return yield* providerService.cleanBackgroundCommands(body);
       }
 
       case WS_METHODS.terminalWrite: {

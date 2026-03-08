@@ -21,6 +21,10 @@ import {
   GitStatusInput,
 } from "./git";
 import {
+  ThreadRuntimeCleanBackgroundCommandsInput,
+  ThreadRuntimeReadInput,
+} from "./threadRuntime";
+import {
   TerminalClearInput,
   TerminalCloseInput,
   TerminalOpenInput,
@@ -57,6 +61,8 @@ export const WS_METHODS = {
   gitInit: "git.init",
 
   // Terminal methods
+  threadRuntimeRead: "threadRuntime.read",
+  threadRuntimeCleanBackgroundCommands: "threadRuntime.cleanBackgroundCommands",
   terminalOpen: "terminal.open",
   terminalWrite: "terminal.write",
   terminalResize: "terminal.resize",
@@ -119,6 +125,11 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.gitInit, GitInitInput),
 
   // Terminal methods
+  tagRequestBody(WS_METHODS.threadRuntimeRead, ThreadRuntimeReadInput),
+  tagRequestBody(
+    WS_METHODS.threadRuntimeCleanBackgroundCommands,
+    ThreadRuntimeCleanBackgroundCommandsInput,
+  ),
   tagRequestBody(WS_METHODS.terminalOpen, TerminalOpenInput),
   tagRequestBody(WS_METHODS.terminalWrite, TerminalWriteInput),
   tagRequestBody(WS_METHODS.terminalResize, TerminalResizeInput),

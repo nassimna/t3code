@@ -9,13 +9,16 @@
  */
 import type {
   ApprovalRequestId,
+  ProviderCleanBackgroundCommandsInput,
   ProviderApprovalDecision,
   ProviderKind,
+  ThreadBackgroundCommandSummary,
   ProviderUserInputAnswers,
   ProviderRuntimeEvent,
   ProviderSendTurnInput,
   ProviderSession,
   ProviderSessionStartInput,
+  ProviderItemId,
   ThreadId,
   ProviderTurnStartResult,
   TurnId,
@@ -34,6 +37,8 @@ export interface ProviderAdapterCapabilities {
 
 export interface ProviderThreadTurnSnapshot {
   readonly id: TurnId;
+  readonly status?: string;
+  readonly interruptedCommandExecutionItemIds?: ReadonlyArray<ProviderItemId>;
   readonly items: ReadonlyArray<unknown>;
 }
 
@@ -90,6 +95,13 @@ export interface ProviderAdapterShape<TError> {
   ) => Effect.Effect<void, TError>;
 
   /**
+   * Stop all background command executions for one thread.
+   */
+  readonly cleanBackgroundCommands: (
+    input: ProviderCleanBackgroundCommandsInput,
+  ) => Effect.Effect<void, TError>;
+
+  /**
    * Stop one provider session.
    */
   readonly stopSession: (threadId: ThreadId) => Effect.Effect<void, TError>;
@@ -110,6 +122,13 @@ export interface ProviderAdapterShape<TError> {
   readonly readThread: (
     threadId: ThreadId,
   ) => Effect.Effect<ProviderThreadSnapshot, TError>;
+
+  /**
+   * List active command-execution items currently kept alive by the provider runtime.
+   */
+  readonly listActiveCommandExecutions: (
+    threadId: ThreadId,
+  ) => Effect.Effect<ReadonlyArray<ThreadBackgroundCommandSummary>, TError>;
 
   /**
    * Roll back a provider thread by N turns.

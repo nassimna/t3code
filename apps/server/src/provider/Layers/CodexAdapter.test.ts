@@ -58,6 +58,8 @@ class FakeCodexManager extends CodexAppServerManager {
     async (_threadId: ThreadId, _turnId?: TurnId): Promise<void> => undefined,
   );
 
+  public cleanBackgroundCommandsImpl = vi.fn(async (_threadId: ThreadId): Promise<void> => undefined);
+
   public readThreadImpl = vi.fn(async (_threadId: ThreadId) => ({
     threadId: asThreadId("thread-1"),
     turns: [],
@@ -96,6 +98,10 @@ class FakeCodexManager extends CodexAppServerManager {
 
   override interruptTurn(threadId: ThreadId, turnId?: TurnId): Promise<void> {
     return this.interruptTurnImpl(threadId, turnId);
+  }
+
+  override cleanBackgroundCommands(threadId: ThreadId): Promise<void> {
+    return this.cleanBackgroundCommandsImpl(threadId);
   }
 
   override readThread(threadId: ThreadId) {
@@ -738,6 +744,84 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
         assert.equal(events[4].turnId, "turn-structured-1");
         assert.equal(events[4].payload.planMarkdown, "# Ship it");
       }
+    }),
+  );
+
+  it.effect("tracks active command executions from live runtime events for thread runtime reads", () =>
+    Effect.gen(function* () {
+      lifecycleManager.cleanBackgroundCommandsImpl.mockClear();
+      const adapter = yield* CodexAdapter;
+      const eventsFiber = yield* Stream.runCollect(Stream.take(adapter.streamEvents, 3)).pipe(
+        Effect.forkChild,
+      );
+
+      lifecycleManager.emit("event", {
+        id: asEventId("evt-command-started"),
+        kind: "notification",
+        provider: "codex",
+        threadId: asThreadId("thread-1"),
+        createdAt: new Date().toISOString(),
+        method: "item/started",
+        turnId: asTurnId("turn-shell"),
+        itemId: asItemId("cmd_1"),
+        payload: {
+          item: {
+            type: "commandExecution",
+            id: "cmd_1",
+            command: "/bin/bash -lc bash",
+            cwd: "/workspace",
+            processId: "4242",
+            status: "inProgress",
+            aggregatedOutput: null,
+          },
+        },
+      } satisfies ProviderEvent);
+
+      lifecycleManager.emit("event", {
+        id: asEventId("evt-command-interaction"),
+        kind: "notification",
+        provider: "codex",
+        threadId: asThreadId("thread-1"),
+        createdAt: new Date().toISOString(),
+        method: "item/commandExecution/terminalInteraction",
+        turnId: asTurnId("turn-follow-up"),
+        itemId: asItemId("cmd_1"),
+        payload: {
+          processId: "4242",
+          stdin: "while true; do date; sleep 1; done &\ndisown\n",
+        },
+      } satisfies ProviderEvent);
+
+      lifecycleManager.emit("event", {
+        id: asEventId("evt-command-output"),
+        kind: "notification",
+        provider: "codex",
+        threadId: asThreadId("thread-1"),
+        createdAt: new Date().toISOString(),
+        method: "item/commandExecution/outputDelta",
+        turnId: asTurnId("turn-shell"),
+        itemId: asItemId("cmd_1"),
+        payload: {
+          delta: "Sun Mar  8 06:00:00 CET 2026\r\n",
+        },
+      } satisfies ProviderEvent);
+
+      yield* Fiber.join(eventsFiber);
+
+      const commands = yield* adapter.listActiveCommandExecutions(asThreadId("thread-1"));
+      assert.equal(commands.length, 1);
+      assert.equal(commands[0]?.id, "cmd_1");
+      assert.equal(commands[0]?.turnId, "turn-shell");
+      assert.equal(commands[0]?.command, "while true; do date; sleep 1; done &");
+      assert.equal(commands[0]?.cwd, "/workspace");
+      assert.equal(commands[0]?.processId, 4242);
+      assert.equal(commands[0]?.previewLine, "Sun Mar  8 06:00:00 CET 2026");
+
+      yield* adapter.cleanBackgroundCommands({ threadId: asThreadId("thread-1") });
+
+      assert.deepEqual(lifecycleManager.cleanBackgroundCommandsImpl.mock.calls, [
+        [asThreadId("thread-1")],
+      ]);
     }),
   );
 });

@@ -119,6 +119,11 @@ export const ProviderRespondToUserInputInput = Schema.Struct({
 });
 export type ProviderRespondToUserInputInput = typeof ProviderRespondToUserInputInput.Type;
 
+export const ProviderCleanBackgroundCommandsInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type ProviderCleanBackgroundCommandsInput = typeof ProviderCleanBackgroundCommandsInput.Type;
+
 const ProviderEventKind = Schema.Literals(["session", "notification", "request", "error"]);
 
 export const ProviderEvent = Schema.Struct({

@@ -17,6 +17,7 @@ import {
 
 interface ThreadTerminalState {
   terminalOpen: boolean;
+  drawerMode: "local" | "background";
   terminalHeight: number;
   terminalIds: string[];
   runningTerminalIds: string[];
@@ -138,6 +139,7 @@ function terminalGroupsEqual(left: ThreadTerminalGroup[], right: ThreadTerminalG
 function threadTerminalStateEqual(left: ThreadTerminalState, right: ThreadTerminalState): boolean {
   return (
     left.terminalOpen === right.terminalOpen &&
+    left.drawerMode === right.drawerMode &&
     left.terminalHeight === right.terminalHeight &&
     left.activeTerminalId === right.activeTerminalId &&
     left.activeTerminalGroupId === right.activeTerminalGroupId &&
@@ -149,6 +151,7 @@ function threadTerminalStateEqual(left: ThreadTerminalState, right: ThreadTermin
 
 const DEFAULT_THREAD_TERMINAL_STATE: ThreadTerminalState = Object.freeze({
   terminalOpen: false,
+  drawerMode: "local",
   terminalHeight: DEFAULT_THREAD_TERMINAL_HEIGHT,
   terminalIds: [DEFAULT_THREAD_TERMINAL_ID],
   runningTerminalIds: [],
@@ -191,6 +194,7 @@ function normalizeThreadTerminalState(state: ThreadTerminalState): ThreadTermina
 
   const normalized: ThreadTerminalState = {
     terminalOpen: state.terminalOpen,
+    drawerMode: state.drawerMode === "background" ? "background" : "local",
     terminalHeight:
       Number.isFinite(state.terminalHeight) && state.terminalHeight > 0
         ? state.terminalHeight
@@ -259,6 +263,7 @@ function upsertTerminalIntoGroups(
     return normalizeThreadTerminalState({
       ...normalized,
       terminalOpen: true,
+      drawerMode: "local",
       terminalIds,
       activeTerminalId: terminalId,
       terminalGroups,
@@ -294,6 +299,7 @@ function upsertTerminalIntoGroups(
   return normalizeThreadTerminalState({
     ...normalized,
     terminalOpen: true,
+    drawerMode: "local",
     terminalIds,
     activeTerminalId: terminalId,
     terminalGroups,
@@ -305,6 +311,15 @@ function setThreadTerminalOpen(state: ThreadTerminalState, open: boolean): Threa
   const normalized = normalizeThreadTerminalState(state);
   if (normalized.terminalOpen === open) return normalized;
   return { ...normalized, terminalOpen: open };
+}
+
+function setThreadDrawerMode(
+  state: ThreadTerminalState,
+  mode: "local" | "background",
+): ThreadTerminalState {
+  const normalized = normalizeThreadTerminalState(state);
+  if (normalized.drawerMode === mode) return normalized;
+  return { ...normalized, drawerMode: mode };
 }
 
 function setThreadTerminalHeight(state: ThreadTerminalState, height: number): ThreadTerminalState {
@@ -377,6 +392,7 @@ function closeThreadTerminal(state: ThreadTerminalState, terminalId: string): Th
 
   return normalizeThreadTerminalState({
     terminalOpen: normalized.terminalOpen,
+    drawerMode: normalized.drawerMode,
     terminalHeight: normalized.terminalHeight,
     terminalIds: remainingTerminalIds,
     runningTerminalIds: normalized.runningTerminalIds.filter((id) => id !== terminalId),
@@ -450,6 +466,7 @@ function updateTerminalStateByThreadId(
 interface TerminalStateStoreState {
   terminalStateByThreadId: Record<ThreadId, ThreadTerminalState>;
   setTerminalOpen: (threadId: ThreadId, open: boolean) => void;
+  setDrawerMode: (threadId: ThreadId, mode: "local" | "background") => void;
   setTerminalHeight: (threadId: ThreadId, height: number) => void;
   splitTerminal: (threadId: ThreadId, terminalId: string) => void;
   newTerminal: (threadId: ThreadId, terminalId: string) => void;
@@ -490,6 +507,8 @@ export const useTerminalStateStore = create<TerminalStateStoreState>()(
         terminalStateByThreadId: {},
         setTerminalOpen: (threadId, open) =>
           updateTerminal(threadId, (state) => setThreadTerminalOpen(state, open)),
+        setDrawerMode: (threadId, mode) =>
+          updateTerminal(threadId, (state) => setThreadDrawerMode(state, mode)),
         setTerminalHeight: (threadId, height) =>
           updateTerminal(threadId, (state) => setThreadTerminalHeight(state, height)),
         splitTerminal: (threadId, terminalId) =>

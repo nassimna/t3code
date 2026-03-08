@@ -11,6 +11,7 @@ import {
   type CanonicalRequestType,
   type ProviderEvent,
   type ProviderRuntimeEvent,
+  type ThreadBackgroundCommandSummary,
   type ProviderUserInputAnswers,
   RuntimeItemId,
   RuntimeRequestId,
@@ -38,6 +39,7 @@ import {
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+import { previewLineFromOutput } from "@t3tools/shared/backgroundCommands";
 
 const PROVIDER = "codex" as const;
 
@@ -1252,6 +1254,211 @@ function mapToRuntimeEvents(
   return [];
 }
 
+interface ActiveCommandExecutionRecord {
+  readonly id: ProviderItemId;
+  readonly threadId: ThreadId;
+  turnId: TurnId;
+  readonly turnIds: Set<TurnId>;
+  command: string;
+  cwd: string | null;
+  processId: number | null;
+  previewLine: string | null;
+  updatedAt: string;
+}
+
+function commandExecutionDataFromEvent(
+  event: ProviderRuntimeEvent,
+): Record<string, unknown> | undefined {
+  if (
+    event.type !== "item.started" &&
+    event.type !== "item.updated" &&
+    event.type !== "item.completed"
+  ) {
+    return undefined;
+  }
+  const data = asObject(event.payload.data);
+  return asObject(data?.item) ?? data;
+}
+
+function processIdFromUnknown(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function commandFromTerminalInput(stdin: unknown): string | null {
+  if (typeof stdin !== "string" || stdin.trim().length === 0) {
+    return null;
+  }
+  const firstMeaningfulLine = stdin
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  return firstMeaningfulLine ?? null;
+}
+
+class ActiveCommandExecutionTracker {
+  private readonly records = new Map<string, ActiveCommandExecutionRecord>();
+
+  ingest(event: ProviderRuntimeEvent): void {
+    if (
+      event.type === "session.exited" ||
+      (event.type === "session.state.changed" && event.payload.state === "stopped")
+    ) {
+      this.removeThread(event.threadId);
+      return;
+    }
+
+    if (
+      event.type === "item.completed" &&
+      event.payload.itemType === "command_execution" &&
+      event.itemId
+    ) {
+      this.records.delete(this.key(event.threadId, event.itemId));
+      return;
+    }
+
+    if (
+      event.type === "item.started" &&
+      event.payload.itemType === "command_execution" &&
+      event.itemId &&
+      event.turnId
+    ) {
+      const item = commandExecutionDataFromEvent(event);
+      this.upsert({
+        id: ProviderItemId.makeUnsafe(String(event.itemId)),
+        threadId: event.threadId,
+        turnId: event.turnId,
+        command:
+          asString(item?.command) ??
+          asString(event.payload.detail) ??
+          asString(event.payload.title) ??
+          "Command",
+        cwd: asString(item?.cwd) ?? null,
+        processId: processIdFromUnknown(item?.processId),
+        previewLine: previewLineFromOutput(item?.aggregatedOutput),
+        updatedAt: event.createdAt,
+      });
+      return;
+    }
+
+    if (
+      event.type === "item.updated" &&
+      event.raw?.method === "item/commandExecution/terminalInteraction" &&
+      event.itemId
+    ) {
+      const payload = asObject(event.raw.payload);
+      const existing = this.records.get(this.key(event.threadId, event.itemId));
+      const turnId = existing?.turnId ?? event.turnId;
+      if (!turnId) {
+        return;
+      }
+      this.upsert({
+        id: ProviderItemId.makeUnsafe(String(event.itemId)),
+        threadId: event.threadId,
+        turnId,
+        command:
+          commandFromTerminalInput(payload?.stdin) ??
+          existing?.command ??
+          asString(event.payload.detail) ??
+          "Command",
+        cwd: existing?.cwd ?? null,
+        processId: processIdFromUnknown(payload?.processId) ?? existing?.processId ?? null,
+        previewLine: existing?.previewLine ?? null,
+        updatedAt: event.createdAt,
+        ...(event.turnId ? { additionalTurnId: event.turnId } : {}),
+      });
+      return;
+    }
+
+    if (
+      event.type === "content.delta" &&
+      event.payload.streamKind === "command_output" &&
+      event.itemId &&
+      event.turnId
+    ) {
+      const deltaPreview = previewLineFromOutput(event.payload.delta);
+      const existing = this.records.get(this.key(event.threadId, event.itemId));
+      this.upsert({
+        id: ProviderItemId.makeUnsafe(String(event.itemId)),
+        threadId: event.threadId,
+        turnId: existing?.turnId ?? event.turnId,
+        command: existing?.command ?? "Command",
+        cwd: existing?.cwd ?? null,
+        processId: existing?.processId ?? null,
+        previewLine: deltaPreview ?? existing?.previewLine ?? null,
+        updatedAt: event.createdAt,
+        ...(event.turnId ? { additionalTurnId: event.turnId } : {}),
+      });
+    }
+  }
+
+  list(threadId: ThreadId): ReadonlyArray<ThreadBackgroundCommandSummary> {
+    return [...this.records.values()]
+      .filter((record) => record.threadId === threadId)
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map((record) => ({
+        id: record.id,
+        turnId: record.turnId,
+        command: record.command,
+        cwd: record.cwd,
+        processId: record.processId,
+        previewLine: record.previewLine,
+      }));
+  }
+
+  private upsert(input: {
+    readonly id: ProviderItemId;
+    readonly threadId: ThreadId;
+    readonly turnId: TurnId;
+    readonly command: string;
+    readonly cwd: string | null;
+    readonly processId: number | null;
+    readonly previewLine: string | null;
+    readonly updatedAt: string;
+    readonly additionalTurnId?: TurnId;
+  }): void {
+    const key = this.key(input.threadId, input.id);
+    const existing = this.records.get(key);
+    const turnIds = new Set(existing?.turnIds ?? []);
+    turnIds.add(input.turnId);
+    if (input.additionalTurnId) {
+      turnIds.add(input.additionalTurnId);
+    }
+
+    const record: ActiveCommandExecutionRecord = {
+      id: input.id,
+      threadId: input.threadId,
+      turnId: existing?.turnId ?? input.turnId,
+      turnIds,
+      command: input.command,
+      cwd: input.cwd,
+      processId: input.processId,
+      previewLine: input.previewLine,
+      updatedAt: input.updatedAt,
+    };
+    this.records.delete(key);
+    this.records.set(key, record);
+  }
+
+  private removeThread(threadId: ThreadId): void {
+    for (const key of this.records.keys()) {
+      if (key.startsWith(`${threadId}\u0000`)) {
+        this.records.delete(key);
+      }
+    }
+  }
+
+  private key(threadId: ThreadId, itemId: ProviderItemId | RuntimeItemId): string {
+    return `${threadId}\u0000${itemId}`;
+  }
+}
+
 const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -1281,6 +1488,7 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
           }
         }),
     );
+    const activeCommandTracker = new ActiveCommandExecutionTracker();
 
     const startSession: CodexAdapterShape["startSession"] = (input) => {
       if (input.provider !== undefined && input.provider !== PROVIDER) {
@@ -1392,6 +1600,10 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
         })),
       );
 
+    const listActiveCommandExecutions: CodexAdapterShape["listActiveCommandExecutions"] = (
+      threadId,
+    ) => Effect.sync(() => activeCommandTracker.list(threadId));
+
     const rollbackThread: CodexAdapterShape["rollbackThread"] = (threadId, numTurns) => {
       if (!Number.isInteger(numTurns) || numTurns < 1) {
         return Effect.fail(
@@ -1432,6 +1644,12 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
       Effect.tryPromise({
         try: () => manager.respondToUserInput(threadId, requestId, answers),
         catch: (cause) => toRequestError(threadId, "item/tool/requestUserInput", cause),
+      });
+
+    const cleanBackgroundCommands: CodexAdapterShape["cleanBackgroundCommands"] = (input) =>
+      Effect.tryPromise({
+        try: () => manager.cleanBackgroundCommands(input.threadId),
+        catch: (cause) => toRequestError(input.threadId, "thread/cleanBackgroundCommands", cause),
       });
 
     const stopSession: CodexAdapterShape["stopSession"] = (threadId) =>
@@ -1476,6 +1694,9 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
               });
               return;
             }
+            for (const runtimeEvent of runtimeEvents) {
+              activeCommandTracker.ingest(runtimeEvent);
+            }
             yield* Queue.offerAll(runtimeEventQueue, runtimeEvents);
           }).pipe(Effect.runPromiseWith(services));
         manager.on("event", listener);
@@ -1499,9 +1720,11 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
       sendTurn,
       interruptTurn,
       readThread,
+      listActiveCommandExecutions,
       rollbackThread,
       respondToRequest,
       respondToUserInput,
+      cleanBackgroundCommands,
       stopSession,
       listSessions,
       hasSession,

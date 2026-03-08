@@ -23,6 +23,10 @@
     "./Net": {
       "types": "./src/Net.ts",
       "import": "./src/Net.ts"
+    },
+    "./backgroundCommands": {
+      "types": "./src/backgroundCommands.ts",
+      "import": "./src/backgroundCommands.ts"
     }
   },
   "scripts": {

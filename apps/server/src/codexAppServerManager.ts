@@ -136,6 +136,8 @@ export interface CodexAppServerStartSessionInput {
 
 export interface CodexThreadTurnSnapshot {
   id: TurnId;
+  status?: string;
+  interruptedCommandExecutionItemIds?: ProviderItemId[];
   items: unknown[];
 }
 
@@ -143,6 +145,13 @@ export interface CodexThreadSnapshot {
   threadId: string;
   turns: CodexThreadTurnSnapshot[];
 }
+
+const CLEAN_BACKGROUND_TERMINAL_METHOD_CANDIDATES = [
+  "thread/backgroundTerminals/clean",
+  "cleanBackgroundTerminals",
+  "backgroundTerminals/clean",
+  "thread/cleanBackgroundTerminals",
+] as const;
 
 const CODEX_VERSION_CHECK_TIMEOUT_MS = 4_000;
 
@@ -853,6 +862,39 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     });
   }
 
+  async cleanBackgroundCommands(threadId: ThreadId): Promise<void> {
+    const context = this.requireSession(threadId);
+    const providerThreadId = readResumeThreadId({
+      threadId: context.session.threadId,
+      runtimeMode: context.session.runtimeMode,
+      resumeCursor: context.session.resumeCursor,
+    });
+
+    for (const method of CLEAN_BACKGROUND_TERMINAL_METHOD_CANDIDATES) {
+      try {
+        await this.sendRequest(
+          context,
+          method,
+          providerThreadId ? { threadId: providerThreadId } : {},
+          10_000,
+        );
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        const methodMissing =
+          message.includes("method not found") ||
+          message.includes("unknown variant") ||
+          message.includes("unknown method") ||
+          message.includes("not implemented");
+        if (!methodMissing) {
+          throw error;
+        }
+      }
+    }
+
+    await this.interruptTurn(threadId);
+  }
+
   async readThread(threadId: ThreadId): Promise<CodexThreadSnapshot> {
     const context = this.requireSession(threadId);
     const providerThreadId = readResumeThreadId({
@@ -1380,10 +1422,23 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       const turnIdRaw = this.readString(turn, "id") ?? `${threadIdRaw}:turn:${index + 1}`;
       const turnId = TurnId.makeUnsafe(turnIdRaw);
       const items = this.readArray(turn, "items") ?? [];
-      return {
+      const status = this.readString(turn, "status");
+      const interruptedCommandExecutionItemIds =
+        (this.readArray(turn, "interruptedCommandExecutionItemIds") ?? [])
+          .map((itemId) => (typeof itemId === "string" ? itemId.trim() : ""))
+          .filter((itemId): itemId is string => itemId.length > 0)
+          .map((itemId) => ProviderItemId.makeUnsafe(itemId));
+      const snapshot: CodexThreadTurnSnapshot = {
         id: turnId,
         items,
       };
+      if (status) {
+        snapshot.status = status;
+      }
+      if (interruptedCommandExecutionItemIds.length > 0) {
+        snapshot.interruptedCommandExecutionItemIds = interruptedCommandExecutionItemIds;
+      }
+      return snapshot;
     });
 
     return {

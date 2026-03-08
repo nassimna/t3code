@@ -11,13 +11,14 @@
  */
 import {
   NonNegativeInt,
-  ThreadId,
+  ProviderCleanBackgroundCommandsInput,
   ProviderInterruptTurnInput,
   ProviderRespondToRequestInput,
   ProviderRespondToUserInputInput,
   ProviderSendTurnInput,
   ProviderSessionStartInput,
   ProviderStopSessionInput,
+  ThreadId,
   type ProviderRuntimeEvent,
   type ProviderSession,
 } from "@t3tools/contracts";
@@ -382,6 +383,26 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         yield* routed.adapter.respondToUserInput(routed.threadId, input.requestId, input.answers);
       });
 
+    const cleanBackgroundCommands: ProviderServiceShape["cleanBackgroundCommands"] = (rawInput) =>
+      Effect.gen(function* () {
+        const input = yield* decodeInputOrValidationError({
+          operation: "ProviderService.cleanBackgroundCommands",
+          schema: ProviderCleanBackgroundCommandsInput,
+          payload: rawInput,
+        });
+        const routed = yield* resolveRoutableSession({
+          threadId: input.threadId,
+          operation: "ProviderService.cleanBackgroundCommands",
+          allowRecovery: true,
+        });
+        yield* routed.adapter.cleanBackgroundCommands({
+          threadId: routed.threadId,
+        });
+        yield* analytics.record("provider.background_commands.cleaned", {
+          provider: routed.adapter.provider,
+        });
+      });
+
     const stopSession: ProviderServiceShape["stopSession"] = (rawInput) =>
       Effect.gen(function* () {
         const input = yield* decodeInputOrValidationError({
@@ -475,6 +496,28 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         });
       });
 
+    const readThread: ProviderServiceShape["readThread"] = (threadId) =>
+      Effect.gen(function* () {
+        const routed = yield* resolveRoutableSession({
+          threadId,
+          operation: "ProviderService.readThread",
+          allowRecovery: true,
+        });
+        return yield* routed.adapter.readThread(routed.threadId);
+      });
+
+    const listActiveCommandExecutions: ProviderServiceShape["listActiveCommandExecutions"] = (
+      threadId,
+    ) =>
+      Effect.gen(function* () {
+        const routed = yield* resolveRoutableSession({
+          threadId,
+          operation: "ProviderService.listActiveCommandExecutions",
+          allowRecovery: true,
+        });
+        return yield* routed.adapter.listActiveCommandExecutions(routed.threadId);
+      });
+
     const runStopAll = () =>
       Effect.gen(function* () {
         const threadIds = yield* directory.listThreadIds();
@@ -513,10 +556,13 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       interruptTurn,
       respondToRequest,
       respondToUserInput,
+      cleanBackgroundCommands,
       stopSession,
       listSessions,
       getCapabilities,
       rollbackConversation,
+      readThread,
+      listActiveCommandExecutions,
       streamEvents: Stream.fromPubSub(runtimeEventPubSub),
     } satisfies ProviderServiceShape;
   });

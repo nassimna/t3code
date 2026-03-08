@@ -1,4 +1,9 @@
 import type {
+  ThreadRuntimeCleanBackgroundCommandsInput,
+  ThreadRuntimeReadInput,
+  ThreadRuntimeReadResult,
+} from "./threadRuntime";
+import type {
   GitCheckoutInput,
   GitCreateBranchInput,
   GitCreateWorktreeInput,
@@ -97,6 +102,10 @@ export interface NativeApi {
   dialogs: {
     pickFolder: () => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
+  };
+  threadRuntime: {
+    read: (input: ThreadRuntimeReadInput) => Promise<ThreadRuntimeReadResult>;
+    cleanBackgroundCommands: (input: ThreadRuntimeCleanBackgroundCommandsInput) => Promise<void>;
   };
   terminal: {
     open: (input: TerminalOpenInput) => Promise<TerminalSessionSnapshot>;

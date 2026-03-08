@@ -472,6 +472,12 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
       sessions.clear();
     });
 
+  const cleanBackgroundCommands: ProviderAdapterShape<ProviderAdapterError>["cleanBackgroundCommands"] =
+    () => Effect.void;
+  const listActiveCommandExecutions: ProviderAdapterShape<
+    ProviderAdapterError
+  >["listActiveCommandExecutions"] = () => Effect.succeed([]);
+
   const adapter: ProviderAdapterShape<ProviderAdapterError> = {
     provider,
     capabilities: {
@@ -482,10 +488,12 @@ export const makeTestProviderAdapterHarness = (options?: MakeTestProviderAdapter
     interruptTurn,
     respondToRequest,
     respondToUserInput,
+    cleanBackgroundCommands,
     stopSession,
     listSessions,
     hasSession,
     readThread,
+    listActiveCommandExecutions,
     rollbackThread,
     stopAll,
     streamEvents: Stream.fromQueue(runtimeEvents),

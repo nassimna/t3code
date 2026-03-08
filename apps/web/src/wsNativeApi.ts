@@ -126,6 +126,11 @@ export function createWsNativeApi(): NativeApi {
         return window.confirm(message);
       },
     },
+    threadRuntime: {
+      read: (input) => transport.request(WS_METHODS.threadRuntimeRead, input),
+      cleanBackgroundCommands: (input) =>
+        transport.request(WS_METHODS.threadRuntimeCleanBackgroundCommands, input),
+    },
     terminal: {
       open: (input) => transport.request(WS_METHODS.terminalOpen, input),
       write: (input) => transport.request(WS_METHODS.terminalWrite, input),

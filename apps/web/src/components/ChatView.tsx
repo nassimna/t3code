@@ -16,6 +16,7 @@ import {
   type ProviderApprovalDecision,
   type ServerProviderStatus,
   type ProviderKind,
+  type ThreadBackgroundCommandSummary,
   type ThreadId,
   type TurnId,
   OrchestrationThreadActivity,
@@ -123,6 +124,7 @@ import {
 } from "../keybindings";
 import ChatMarkdown from "./ChatMarkdown";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
+import ComposerBackgroundCommandsPanel from "./ComposerBackgroundCommandsPanel";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import {
   BotIcon,
@@ -658,6 +660,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const [expandedWorkGroups, setExpandedWorkGroups] = useState<Record<string, boolean>>({});
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
+  const [backgroundCommands, setBackgroundCommands] = useState<ThreadBackgroundCommandSummary[]>([]);
+  const [isCleaningBackgroundCommands, setIsCleaningBackgroundCommands] = useState(false);
   const [composerHighlightedItemId, setComposerHighlightedItemId] = useState<string | null>(null);
   const [attachmentPreviewHandoffByMessageId, setAttachmentPreviewHandoffByMessageId] = useState<
     Record<string, string[]>
@@ -704,6 +708,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     selectThreadTerminalState(state.terminalStateByThreadId, threadId),
   );
   const storeSetTerminalOpen = useTerminalStateStore((s) => s.setTerminalOpen);
+  const storeSetDrawerMode = useTerminalStateStore((s) => s.setDrawerMode);
   const storeSetTerminalHeight = useTerminalStateStore((s) => s.setTerminalHeight);
   const storeSplitTerminal = useTerminalStateStore((s) => s.splitTerminal);
   const storeNewTerminal = useTerminalStateStore((s) => s.newTerminal);
@@ -766,6 +771,40 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
   const activeProject = projects.find((p) => p.id === activeThread?.projectId);
+
+  useEffect(() => {
+    const api = readNativeApi();
+    if (!api || !activeThreadId || !isServerThread) {
+      setBackgroundCommands([]);
+      setIsCleaningBackgroundCommands(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCleaningBackgroundCommands(false);
+
+    const refresh = () =>
+      api.threadRuntime
+        .read({ threadId: activeThreadId })
+        .then((result) => {
+          if (cancelled) return;
+          setBackgroundCommands([...result.backgroundCommands]);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setBackgroundCommands([]);
+        });
+
+    void refresh();
+    const intervalId = window.setInterval(() => {
+      void refresh();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeThreadId, isServerThread]);
 
   useEffect(() => {
     if (!activeThread?.id) return;
@@ -1360,6 +1399,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
     },
     [activeThreadId, storeSetTerminalOpen],
   );
+  const setDrawerMode = useCallback(
+    (mode: "local" | "background") => {
+      if (!activeThreadId) return;
+      storeSetDrawerMode(activeThreadId, mode);
+    },
+    [activeThreadId, storeSetDrawerMode],
+  );
   const setTerminalHeight = useCallback(
     (height: number) => {
       if (!activeThreadId) return;
@@ -1373,28 +1419,32 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, [activeThreadId, setTerminalOpen, terminalState.terminalOpen]);
   const splitTerminal = useCallback(() => {
     if (!activeThreadId || hasReachedTerminalLimit) return;
+    setDrawerMode("local");
     const terminalId = `terminal-${crypto.randomUUID()}`;
     storeSplitTerminal(activeThreadId, terminalId);
     setTerminalFocusRequestId((value) => value + 1);
-  }, [activeThreadId, storeSplitTerminal, hasReachedTerminalLimit]);
+  }, [activeThreadId, setDrawerMode, storeSplitTerminal, hasReachedTerminalLimit]);
   const createNewTerminal = useCallback(() => {
     if (!activeThreadId || hasReachedTerminalLimit) return;
+    setDrawerMode("local");
     const terminalId = `terminal-${crypto.randomUUID()}`;
     storeNewTerminal(activeThreadId, terminalId);
     setTerminalFocusRequestId((value) => value + 1);
-  }, [activeThreadId, storeNewTerminal, hasReachedTerminalLimit]);
+  }, [activeThreadId, setDrawerMode, storeNewTerminal, hasReachedTerminalLimit]);
   const activateTerminal = useCallback(
     (terminalId: string) => {
       if (!activeThreadId) return;
+      setDrawerMode("local");
       storeSetActiveTerminal(activeThreadId, terminalId);
       setTerminalFocusRequestId((value) => value + 1);
     },
-    [activeThreadId, storeSetActiveTerminal],
+    [activeThreadId, setDrawerMode, storeSetActiveTerminal],
   );
   const closeTerminal = useCallback(
     (terminalId: string) => {
       const api = readNativeApi();
       if (!activeThreadId || !api) return;
+      setDrawerMode("local");
       const isFinalTerminal = terminalState.terminalIds.length <= 1;
       const fallbackExitWrite = () =>
         api.terminal
@@ -1415,8 +1465,35 @@ export default function ChatView({ threadId }: ChatViewProps) {
       storeCloseTerminal(activeThreadId, terminalId);
       setTerminalFocusRequestId((value) => value + 1);
     },
-    [activeThreadId, storeCloseTerminal, terminalState.terminalIds.length],
+    [activeThreadId, setDrawerMode, storeCloseTerminal, terminalState.terminalIds.length],
   );
+  const cleanBackgroundCommands = useCallback(async () => {
+    const api = readNativeApi();
+    if (!activeThreadId || !api || isCleaningBackgroundCommands) return;
+    setIsCleaningBackgroundCommands(true);
+    try {
+      await api.threadRuntime.cleanBackgroundCommands({ threadId: activeThreadId });
+      const deadline = Date.now() + 12_000;
+
+      while (true) {
+        const result = await api.threadRuntime.read({ threadId: activeThreadId });
+        setBackgroundCommands([...result.backgroundCommands]);
+        if (result.backgroundCommands.length === 0 || Date.now() >= deadline) {
+          break;
+        }
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 400);
+        });
+      }
+    } catch (error) {
+      setThreadError(
+        activeThreadId,
+        error instanceof Error ? error.message : "Failed to stop background terminals.",
+      );
+    } finally {
+      setIsCleaningBackgroundCommands(false);
+    }
+  }, [activeThreadId, isCleaningBackgroundCommands, setThreadError]);
   const runProjectScript = useCallback(
     async (
       script: ProjectScript,
@@ -1452,6 +1529,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         : baseTerminalId;
 
       setTerminalOpen(true);
+      setDrawerMode("local");
       if (shouldCreateNewTerminal) {
         storeNewTerminal(activeThreadId, targetTerminalId);
       } else {
@@ -1502,6 +1580,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       activeThreadId,
       gitCwd,
       isServerThread,
+      setDrawerMode,
       setTerminalOpen,
       setThreadError,
       storeNewTerminal,
@@ -3463,8 +3542,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
           className="mx-auto w-full min-w-0 max-w-3xl"
           data-chat-composer-form="true"
         >
+          <ComposerBackgroundCommandsPanel
+            commands={backgroundCommands}
+            isCleaning={isCleaningBackgroundCommands}
+            onClean={() => {
+              void cleanBackgroundCommands();
+            }}
+          />
           <div
-            className={`group rounded-[20px] border bg-card transition-colors duration-200 focus-within:border-ring/45 ${
+            className={`group border bg-card transition-colors duration-200 focus-within:border-ring/45 ${
+              backgroundCommands.length > 0 ? "rounded-b-[20px] rounded-t-none" : "rounded-[20px]"
+            } ${
               isDragOverComposer ? "border-primary/70 bg-accent/30" : "border-border"
             }`}
             onDragEnter={onComposerDragEnter}

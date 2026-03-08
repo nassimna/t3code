@@ -633,6 +633,46 @@ describe("thread checkpoint control", () => {
       turns: [],
     });
   });
+
+  it("cleans background terminals via cleanBackgroundTerminals when supported", async () => {
+    const { manager, context, sendRequest } = createThreadControlHarness();
+    sendRequest.mockResolvedValueOnce({});
+
+    await manager.cleanBackgroundCommands(asThreadId("thread_1"));
+
+    expect(sendRequest).toHaveBeenCalledWith(
+      context,
+      "thread/backgroundTerminals/clean",
+      {
+        threadId: "thread_1",
+      },
+      10_000,
+    );
+  });
+
+  it("falls back to interrupting the active turn when cleanBackgroundTerminals is unavailable", async () => {
+    const { manager, context, sendRequest } = createThreadControlHarness();
+    const session = context.session as { activeTurnId?: string };
+    session.activeTurnId = "turn_active";
+    sendRequest
+      .mockRejectedValueOnce(new Error("Method not found"))
+      .mockRejectedValueOnce(new Error("Method not found"))
+      .mockRejectedValueOnce(new Error("Method not found"))
+      .mockRejectedValueOnce(new Error("Method not found"))
+      .mockResolvedValueOnce({});
+
+    await manager.cleanBackgroundCommands(asThreadId("thread_1"));
+
+    expect(sendRequest).toHaveBeenNthCalledWith(
+      5,
+      context,
+      "turn/interrupt",
+      {
+        threadId: "thread_1",
+        turnId: "turn_active",
+      },
+    );
+  });
 });
 
 describe("respondToUserInput", () => {
