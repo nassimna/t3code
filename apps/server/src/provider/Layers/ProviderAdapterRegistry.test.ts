@@ -22,6 +22,8 @@ const fakeCodexAdapter: CodexAdapterShape = {
   listSessions: vi.fn(),
   hasSession: vi.fn(),
   readThread: vi.fn(),
+  getComposerCapabilities: vi.fn(),
+  listSkills: vi.fn(),
   rollbackThread: vi.fn(),
   stopAll: vi.fn(),
   streamEvents: Stream.empty,

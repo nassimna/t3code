@@ -68,6 +68,13 @@ function createProviderServiceHarness() {
     stopSession: () => unsupported(),
     listSessions: () => Effect.succeed([]),
     getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+    getComposerCapabilities: () =>
+      Effect.succeed({
+        provider: "codex",
+        skillTrigger: "$",
+        supportsStructuredPromptItems: true,
+      }),
+    listSkills: () => Effect.succeed({ entries: [] }),
     rollbackConversation: () => unsupported(),
     streamEvents: Stream.fromPubSub(runtimeEventPubSub),
   };

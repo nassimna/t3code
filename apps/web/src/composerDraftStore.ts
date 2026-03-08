@@ -1,4 +1,5 @@
 import {
+  type ComposerInlineItem,
   DEFAULT_REASONING_EFFORT_BY_PROVIDER,
   ProjectId,
   REASONING_EFFORT_OPTIONS_BY_PROVIDER,
@@ -16,6 +17,7 @@ import {
 } from "./types";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { normalizeComposerInlineItems } from "./composer-editor-mentions";
 
 export const COMPOSER_DRAFT_STORAGE_KEY = "t3code:composer-drafts:v1";
 export type DraftThreadEnvMode = "local" | "worktree";
@@ -35,6 +37,7 @@ export interface ComposerImageAttachment extends Omit<ChatImageAttachment, "prev
 
 interface PersistedComposerThreadDraftState {
   prompt: string;
+  inlineItems?: ComposerInlineItem[];
   attachments: PersistedComposerImageAttachment[];
   provider?: ProviderKind | null;
   model?: string | null;
@@ -63,6 +66,7 @@ interface PersistedComposerDraftStoreState {
 
 interface ComposerThreadDraftState {
   prompt: string;
+  inlineItems: ComposerInlineItem[];
   images: ComposerImageAttachment[];
   nonPersistedImageIds: string[];
   persistedAttachments: PersistedComposerImageAttachment[];
@@ -121,7 +125,7 @@ interface ComposerDraftStoreState {
   clearProjectDraftThreadId: (projectId: ProjectId) => void;
   clearProjectDraftThreadById: (projectId: ProjectId, threadId: ThreadId) => void;
   clearDraftThread: (threadId: ThreadId) => void;
-  setPrompt: (threadId: ThreadId, prompt: string) => void;
+  setPrompt: (threadId: ThreadId, prompt: string, inlineItems?: ComposerInlineItem[]) => void;
   setProvider: (threadId: ThreadId, provider: ProviderKind | null | undefined) => void;
   setModel: (threadId: ThreadId, model: string | null | undefined) => void;
   setRuntimeMode: (threadId: ThreadId, runtimeMode: RuntimeMode | null | undefined) => void;
@@ -152,11 +156,14 @@ const EMPTY_PERSISTED_DRAFT_STORE_STATE: PersistedComposerDraftStoreState = {
 const EMPTY_IMAGES: ComposerImageAttachment[] = [];
 const EMPTY_IDS: string[] = [];
 const EMPTY_PERSISTED_ATTACHMENTS: PersistedComposerImageAttachment[] = [];
+const EMPTY_INLINE_ITEMS: ComposerInlineItem[] = [];
 Object.freeze(EMPTY_IMAGES);
 Object.freeze(EMPTY_IDS);
 Object.freeze(EMPTY_PERSISTED_ATTACHMENTS);
+Object.freeze(EMPTY_INLINE_ITEMS);
 const EMPTY_THREAD_DRAFT = Object.freeze({
   prompt: "",
+  inlineItems: EMPTY_INLINE_ITEMS,
   images: EMPTY_IMAGES,
   nonPersistedImageIds: EMPTY_IDS,
   persistedAttachments: EMPTY_PERSISTED_ATTACHMENTS,
@@ -175,6 +182,7 @@ const REASONING_EFFORT_VALUES = new Set<CodexReasoningEffort>(
 function createEmptyThreadDraft(): ComposerThreadDraftState {
   return {
     prompt: "",
+    inlineItems: [],
     images: [],
     nonPersistedImageIds: [],
     persistedAttachments: [],
@@ -196,6 +204,7 @@ function composerImageDedupKey(image: ComposerImageAttachment): string {
 function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
   return (
     draft.prompt.length === 0 &&
+    draft.inlineItems.length === 0 &&
     draft.images.length === 0 &&
     draft.persistedAttachments.length === 0 &&
     draft.provider === null &&
@@ -250,6 +259,32 @@ function normalizePersistedAttachment(value: unknown): PersistedComposerImageAtt
     sizeBytes,
     dataUrl,
   };
+}
+
+function normalizePersistedInlineItem(value: unknown): ComposerInlineItem | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  const kind = candidate.kind;
+  const name = candidate.name;
+  const path = candidate.path;
+  const start = candidate.start;
+  const end = candidate.end;
+  if (
+    (kind !== "skill" && kind !== "mention") ||
+    typeof name !== "string" ||
+    typeof path !== "string" ||
+    typeof start !== "number" ||
+    !Number.isInteger(start) ||
+    start < 0 ||
+    typeof end !== "number" ||
+    !Number.isInteger(end) ||
+    end <= start
+  ) {
+    return null;
+  }
+  return { kind, name, path, start, end };
 }
 
 function normalizeDraftThreadEnvMode(
@@ -360,6 +395,15 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
     }
     const draftCandidate = draftValue as Record<string, unknown>;
     const prompt = typeof draftCandidate.prompt === "string" ? draftCandidate.prompt : "";
+    const inlineItems = Array.isArray(draftCandidate.inlineItems)
+      ? normalizeComposerInlineItems(
+          prompt,
+          draftCandidate.inlineItems.flatMap((entry) => {
+            const normalized = normalizePersistedInlineItem(entry);
+            return normalized ? [normalized] : [];
+          }),
+        )
+      : [];
     const attachments = Array.isArray(draftCandidate.attachments)
       ? draftCandidate.attachments.flatMap((entry) => {
           const normalized = normalizePersistedAttachment(entry);
@@ -391,6 +435,7 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
       (typeof draftCandidate.serviceTier === "string" && draftCandidate.serviceTier === "fast");
     if (
       prompt.length === 0 &&
+      inlineItems.length === 0 &&
       attachments.length === 0 &&
       !provider &&
       !model &&
@@ -403,6 +448,7 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
     }
     nextDraftsByThreadId[threadId as ThreadId] = {
       prompt,
+      ...(inlineItems.length > 0 ? { inlineItems } : {}),
       attachments,
       ...(provider ? { provider } : {}),
       ...(model ? { model } : {}),
@@ -508,6 +554,10 @@ function toHydratedThreadDraft(
 ): ComposerThreadDraftState {
   return {
     prompt: persistedDraft.prompt,
+    inlineItems: normalizeComposerInlineItems(
+      persistedDraft.prompt,
+      persistedDraft.inlineItems ?? EMPTY_INLINE_ITEMS,
+    ),
     images: hydrateImagesFromPersisted(persistedDraft.attachments),
     nonPersistedImageIds: [],
     persistedAttachments: persistedDraft.attachments,
@@ -759,15 +809,20 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
           };
         });
       },
-      setPrompt: (threadId, prompt) => {
+      setPrompt: (threadId, prompt, inlineItems) => {
         if (threadId.length === 0) {
           return;
         }
         set((state) => {
           const existing = state.draftsByThreadId[threadId] ?? createEmptyThreadDraft();
+          const nextInlineItems = normalizeComposerInlineItems(
+            prompt,
+            inlineItems ?? existing.inlineItems,
+          );
           const nextDraft: ComposerThreadDraftState = {
             ...existing,
             prompt,
+            inlineItems: nextInlineItems,
           };
           const nextDraftsByThreadId = { ...state.draftsByThreadId };
           if (shouldRemoveDraft(nextDraft)) {
@@ -1117,6 +1172,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
           const nextDraft: ComposerThreadDraftState = {
             ...current,
             prompt: "",
+            inlineItems: [],
             images: [],
             nonPersistedImageIds: [],
             persistedAttachments: [],
@@ -1178,6 +1234,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
           }
           if (
             draft.prompt.length === 0 &&
+            draft.inlineItems.length === 0 &&
             draft.persistedAttachments.length === 0 &&
             draft.provider === null &&
             draft.model === null &&
@@ -1192,6 +1249,9 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             prompt: draft.prompt,
             attachments: draft.persistedAttachments,
           };
+          if (draft.inlineItems.length > 0) {
+            persistedDraft.inlineItems = draft.inlineItems;
+          }
           if (draft.model) {
             persistedDraft.model = draft.model;
           }
@@ -1226,8 +1286,8 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             toHydratedThreadDraft(draft),
           ]),
         );
-        return {
-          ...currentState,
+  return {
+    ...currentState,
           draftsByThreadId,
           draftThreadsByThreadId: normalizedPersisted.draftThreadsByThreadId,
           projectDraftThreadIdByProjectId: normalizedPersisted.projectDraftThreadIdByProjectId,

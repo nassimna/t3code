@@ -1,4 +1,5 @@
 import {
+  type ComposerInlineItem,
   type ChatAttachment,
   CommandId,
   EventId,
@@ -320,6 +321,7 @@ const make = Effect.gen(function* () {
   const sendTurnForThread = Effect.fnUntraced(function* (input: {
     readonly threadId: ThreadId;
     readonly messageText: string;
+    readonly inlineItems?: ReadonlyArray<ComposerInlineItem>;
     readonly attachments?: ReadonlyArray<ChatAttachment>;
     readonly provider?: ProviderKind;
     readonly model?: string;
@@ -353,6 +355,7 @@ const make = Effect.gen(function* () {
     yield* providerService.sendTurn({
       threadId: input.threadId,
       ...(normalizedInput ? { input: normalizedInput } : {}),
+      inlineItems: input.inlineItems ?? [],
       ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
       ...(modelForTurn !== undefined ? { model: modelForTurn } : {}),
       ...(input.serviceTier !== undefined ? { serviceTier: input.serviceTier } : {}),
@@ -467,6 +470,7 @@ const make = Effect.gen(function* () {
     yield* sendTurnForThread({
       threadId: event.payload.threadId,
       messageText: message.text,
+      ...(event.payload.inlineItems !== undefined ? { inlineItems: event.payload.inlineItems } : {}),
       ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
       ...(event.payload.provider !== undefined ? { provider: event.payload.provider } : {}),
       ...(event.payload.model !== undefined ? { model: event.payload.model } : {}),

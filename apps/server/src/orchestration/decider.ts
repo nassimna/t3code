@@ -299,6 +299,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           messageId: command.message.messageId,
+          inlineItems: command.message.inlineItems,
           ...(command.provider !== undefined ? { provider: command.provider } : {}),
           ...(command.model !== undefined ? { model: command.model } : {}),
           ...(command.serviceTier !== undefined ? { serviceTier: command.serviceTier } : {}),

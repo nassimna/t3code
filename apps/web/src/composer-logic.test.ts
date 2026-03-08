@@ -56,6 +56,18 @@ describe("detectComposerTrigger", () => {
       rangeEnd: text.length,
     });
   });
+
+  it("detects provider skill trigger when configured", () => {
+    const text = "Use $ref";
+    const trigger = detectComposerTrigger(text, text.length, { skillTrigger: "$" });
+
+    expect(trigger).toEqual({
+      kind: "skill",
+      query: "ref",
+      rangeStart: "Use ".length,
+      rangeEnd: text.length,
+    });
+  });
 });
 
 describe("replaceTextRange", () => {
@@ -70,15 +82,24 @@ describe("replaceTextRange", () => {
 
 describe("expandCollapsedComposerCursor", () => {
   it("keeps cursor unchanged when no mention segment is present", () => {
-    expect(expandCollapsedComposerCursor("plain text", 5)).toBe(5);
+    expect(expandCollapsedComposerCursor("plain text", [], 5)).toBe(5);
   });
 
   it("maps collapsed mention cursor to expanded text cursor", () => {
     const text = "what's in my @AGENTS.md fsfdas";
     const collapsedCursorAfterMention = "what's in my ".length + 2;
     const expandedCursorAfterMention = "what's in my @AGENTS.md ".length;
+    const inlineItems = [
+      {
+        kind: "mention" as const,
+        name: "AGENTS.md",
+        path: "AGENTS.md",
+        start: "what's in my ".length,
+        end: "what's in my @AGENTS.md".length,
+      },
+    ];
 
-    expect(expandCollapsedComposerCursor(text, collapsedCursorAfterMention)).toBe(
+    expect(expandCollapsedComposerCursor(text, inlineItems, collapsedCursorAfterMention)).toBe(
       expandedCursorAfterMention,
     );
   });
@@ -86,7 +107,20 @@ describe("expandCollapsedComposerCursor", () => {
   it("allows path trigger detection to close after selecting a mention", () => {
     const text = "what's in my @AGENTS.md ";
     const collapsedCursorAfterMention = "what's in my ".length + 2;
-    const expandedCursor = expandCollapsedComposerCursor(text, collapsedCursorAfterMention);
+    const inlineItems = [
+      {
+        kind: "mention" as const,
+        name: "AGENTS.md",
+        path: "AGENTS.md",
+        start: "what's in my ".length,
+        end: "what's in my @AGENTS.md".length,
+      },
+    ];
+    const expandedCursor = expandCollapsedComposerCursor(
+      text,
+      inlineItems,
+      collapsedCursorAfterMention,
+    );
 
     expect(detectComposerTrigger(text, expandedCursor)).toBeNull();
   });
@@ -94,34 +128,62 @@ describe("expandCollapsedComposerCursor", () => {
 
 describe("isCollapsedCursorAdjacentToMention", () => {
   it("returns false when no mention exists", () => {
-    expect(isCollapsedCursorAdjacentToMention("plain text", 6, "left")).toBe(false);
-    expect(isCollapsedCursorAdjacentToMention("plain text", 6, "right")).toBe(false);
+    expect(isCollapsedCursorAdjacentToMention("plain text", [], 6, "left")).toBe(false);
+    expect(isCollapsedCursorAdjacentToMention("plain text", [], 6, "right")).toBe(false);
   });
 
   it("keeps @query typing non-adjacent while no mention pill exists", () => {
     const text = "hello @pac";
-    expect(isCollapsedCursorAdjacentToMention(text, text.length, "left")).toBe(false);
-    expect(isCollapsedCursorAdjacentToMention(text, text.length, "right")).toBe(false);
+    expect(isCollapsedCursorAdjacentToMention(text, [], text.length, "left")).toBe(false);
+    expect(isCollapsedCursorAdjacentToMention(text, [], text.length, "right")).toBe(false);
   });
 
   it("detects left adjacency only when cursor is directly after a mention", () => {
     const text = "open @AGENTS.md next";
     const mentionStart = "open ".length;
     const mentionEnd = mentionStart + 1;
+    const inlineItems = [
+      {
+        kind: "mention" as const,
+        name: "AGENTS.md",
+        path: "AGENTS.md",
+        start: mentionStart,
+        end: "open @AGENTS.md".length,
+      },
+    ];
 
-    expect(isCollapsedCursorAdjacentToMention(text, mentionEnd, "left")).toBe(true);
-    expect(isCollapsedCursorAdjacentToMention(text, mentionStart, "left")).toBe(false);
-    expect(isCollapsedCursorAdjacentToMention(text, mentionEnd + 1, "left")).toBe(false);
+    expect(isCollapsedCursorAdjacentToMention(text, inlineItems, mentionEnd, "left")).toBe(true);
+    expect(isCollapsedCursorAdjacentToMention(text, inlineItems, mentionStart, "left")).toBe(
+      false,
+    );
+    expect(
+      isCollapsedCursorAdjacentToMention(text, inlineItems, mentionEnd + 1, "left"),
+    ).toBe(false);
   });
 
   it("detects right adjacency only when cursor is directly before a mention", () => {
     const text = "open @AGENTS.md next";
     const mentionStart = "open ".length;
     const mentionEnd = mentionStart + 1;
+    const inlineItems = [
+      {
+        kind: "mention" as const,
+        name: "AGENTS.md",
+        path: "AGENTS.md",
+        start: mentionStart,
+        end: "open @AGENTS.md".length,
+      },
+    ];
 
-    expect(isCollapsedCursorAdjacentToMention(text, mentionStart, "right")).toBe(true);
-    expect(isCollapsedCursorAdjacentToMention(text, mentionEnd, "right")).toBe(false);
-    expect(isCollapsedCursorAdjacentToMention(text, mentionStart - 1, "right")).toBe(false);
+    expect(isCollapsedCursorAdjacentToMention(text, inlineItems, mentionStart, "right")).toBe(
+      true,
+    );
+    expect(isCollapsedCursorAdjacentToMention(text, inlineItems, mentionEnd, "right")).toBe(
+      false,
+    );
+    expect(
+      isCollapsedCursorAdjacentToMention(text, inlineItems, mentionStart - 1, "right"),
+    ).toBe(false);
   });
 });
 

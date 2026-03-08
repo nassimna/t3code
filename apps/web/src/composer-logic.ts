@@ -1,6 +1,8 @@
+import type { ComposerInlineItem } from "@t3tools/contracts";
+
 import { splitPromptIntoComposerSegments } from "./composer-editor-mentions";
 
-export type ComposerTriggerKind = "path" | "slash-command" | "slash-model";
+export type ComposerTriggerKind = "path" | "skill" | "slash-command" | "slash-model";
 export type ComposerSlashCommand = "model" | "plan" | "default";
 
 export interface ComposerTrigger {
@@ -29,9 +31,35 @@ function tokenStartForCursor(text: string, cursor: number): number {
   return index + 1;
 }
 
-export function expandCollapsedComposerCursor(text: string, cursorInput: number): number {
+function collapsedSegmentLength(
+  segment:
+    | { type: "text"; text: string }
+    | { type: "inline-item"; inlineItem: ComposerInlineItem; text: string },
+): number {
+  return segment.type === "inline-item" ? 1 : segment.text.length;
+}
+
+function clampCollapsedComposerCursor(
+  segments: ReturnType<typeof splitPromptIntoComposerSegments>,
+  cursorInput: number,
+): number {
+  const collapsedLength = segments.reduce(
+    (total, segment) => total + collapsedSegmentLength(segment),
+    0,
+  );
+  if (!Number.isFinite(cursorInput)) {
+    return collapsedLength;
+  }
+  return Math.max(0, Math.min(collapsedLength, Math.floor(cursorInput)));
+}
+
+export function expandCollapsedComposerCursor(
+  text: string,
+  inlineItems: ReadonlyArray<ComposerInlineItem> | undefined,
+  cursorInput: number,
+): number {
   const collapsedCursor = clampCursor(text, cursorInput);
-  const segments = splitPromptIntoComposerSegments(text);
+  const segments = splitPromptIntoComposerSegments(text, inlineItems);
   if (segments.length === 0) {
     return collapsedCursor;
   }
@@ -40,8 +68,8 @@ export function expandCollapsedComposerCursor(text: string, cursorInput: number)
   let expandedCursor = 0;
 
   for (const segment of segments) {
-    if (segment.type === "mention") {
-      const expandedLength = segment.path.length + 1;
+    if (segment.type === "inline-item") {
+      const expandedLength = segment.text.length;
       if (remaining <= 1) {
         return expandedCursor + (remaining === 0 ? 0 : expandedLength);
       }
@@ -61,31 +89,14 @@ export function expandCollapsedComposerCursor(text: string, cursorInput: number)
   return expandedCursor;
 }
 
-function collapsedSegmentLength(segment: { type: "text"; text: string } | { type: "mention" }): number {
-  return segment.type === "mention" ? 1 : segment.text.length;
-}
-
-function clampCollapsedComposerCursor(
-  segments: ReadonlyArray<{ type: "text"; text: string } | { type: "mention" }>,
-  cursorInput: number,
-): number {
-  const collapsedLength = segments.reduce(
-    (total, segment) => total + collapsedSegmentLength(segment),
-    0,
-  );
-  if (!Number.isFinite(cursorInput)) {
-    return collapsedLength;
-  }
-  return Math.max(0, Math.min(collapsedLength, Math.floor(cursorInput)));
-}
-
 export function isCollapsedCursorAdjacentToMention(
   text: string,
+  inlineItems: ReadonlyArray<ComposerInlineItem> | undefined,
   cursorInput: number,
   direction: "left" | "right",
 ): boolean {
-  const segments = splitPromptIntoComposerSegments(text);
-  if (!segments.some((segment) => segment.type === "mention")) {
+  const segments = splitPromptIntoComposerSegments(text, inlineItems);
+  if (!segments.some((segment) => segment.type === "inline-item")) {
     return false;
   }
 
@@ -93,7 +104,7 @@ export function isCollapsedCursorAdjacentToMention(
   let collapsedOffset = 0;
 
   for (const segment of segments) {
-    if (segment.type === "mention") {
+    if (segment.type === "inline-item") {
       if (direction === "left" && cursor === collapsedOffset + 1) {
         return true;
       }
@@ -107,7 +118,11 @@ export function isCollapsedCursorAdjacentToMention(
   return false;
 }
 
-export function detectComposerTrigger(text: string, cursorInput: number): ComposerTrigger | null {
+export function detectComposerTrigger(
+  text: string,
+  cursorInput: number,
+  options?: { skillTrigger?: string | null },
+): ComposerTrigger | null {
   const cursor = clampCursor(text, cursorInput);
   const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
   const linePrefix = text.slice(lineStart, cursor);
@@ -148,13 +163,23 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
 
   const tokenStart = tokenStartForCursor(text, cursor);
   const token = text.slice(tokenStart, cursor);
-  if (!token.startsWith("@")) {
+  if (token.startsWith("@")) {
+    return {
+      kind: "path",
+      query: token.slice(1),
+      rangeStart: tokenStart,
+      rangeEnd: cursor,
+    };
+  }
+
+  const skillTrigger = options?.skillTrigger?.trim();
+  if (!skillTrigger || token === "" || !token.startsWith(skillTrigger)) {
     return null;
   }
 
   return {
-    kind: "path",
-    query: token.slice(1),
+    kind: "skill",
+    query: token.slice(skillTrigger.length),
     rangeStart: tokenStart,
     rangeEnd: cursor,
   };

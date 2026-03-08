@@ -1,6 +1,8 @@
 import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
+  type ProviderComposerCapabilitiesInput,
+  type ProviderListSkillsInput,
   ThreadId,
 } from "@t3tools/contracts";
 import { queryOptions } from "@tanstack/react-query";
@@ -17,6 +19,34 @@ interface CheckpointDiffQueryInput {
 
 export const providerQueryKeys = {
   all: ["providers"] as const,
+  composerCapabilities: (input: {
+    threadId: ThreadId | null;
+    provider?: string | null;
+    cwd?: string | null;
+    providerOptionsKey?: string | null;
+  }) =>
+    [
+      "providers",
+      "composer-capabilities",
+      input.threadId,
+      input.provider ?? null,
+      input.cwd ?? null,
+      input.providerOptionsKey ?? null,
+    ] as const,
+  skills: (input: {
+    threadId: ThreadId | null;
+    provider?: string | null;
+    cwd?: string | null;
+    providerOptionsKey?: string | null;
+  }) =>
+    [
+      "providers",
+      "skills",
+      input.threadId,
+      input.provider ?? null,
+      input.cwd ?? null,
+      input.providerOptionsKey ?? null,
+    ] as const,
   checkpointDiff: (input: CheckpointDiffQueryInput) =>
     [
       "providers",
@@ -120,5 +150,53 @@ export function checkpointDiffQueryOptions(input: CheckpointDiffQueryInput) {
       isCheckpointTemporarilyUnavailable(error)
         ? Math.min(5_000, 250 * 2 ** (attempt - 1))
         : Math.min(1_000, 100 * 2 ** (attempt - 1)),
+  });
+}
+
+export function providerComposerCapabilitiesQueryOptions(input: {
+  request: ProviderComposerCapabilitiesInput | null;
+  providerOptionsKey?: string | null;
+  enabled?: boolean;
+}) {
+  return queryOptions({
+    queryKey: providerQueryKeys.composerCapabilities({
+      threadId: input.request?.threadId ?? null,
+      provider: input.request?.provider ?? null,
+      cwd: input.request?.cwd ?? null,
+      providerOptionsKey: input.providerOptionsKey ?? null,
+    }),
+    queryFn: async () => {
+      const api = ensureNativeApi();
+      if (!input.request) {
+        throw new Error("Composer capabilities are unavailable.");
+      }
+      return api.providers.getComposerCapabilities(input.request);
+    },
+    enabled: (input.enabled ?? true) && input.request !== null,
+    staleTime: 30_000,
+  });
+}
+
+export function providerSkillsQueryOptions(input: {
+  request: ProviderListSkillsInput | null;
+  providerOptionsKey?: string | null;
+  enabled?: boolean;
+}) {
+  return queryOptions({
+    queryKey: providerQueryKeys.skills({
+      threadId: input.request?.threadId ?? null,
+      provider: input.request?.provider ?? null,
+      cwd: input.request?.cwd ?? null,
+      providerOptionsKey: input.providerOptionsKey ?? null,
+    }),
+    queryFn: async () => {
+      const api = ensureNativeApi();
+      if (!input.request) {
+        throw new Error("Provider skills are unavailable.");
+      }
+      return api.providers.listSkills(input.request);
+    },
+    enabled: (input.enabled ?? true) && input.request !== null,
+    staleTime: 10_000,
   });
 }

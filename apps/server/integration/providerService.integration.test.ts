@@ -108,6 +108,7 @@ const runTurn = (input: {
       input.provider.sendTurn({
         threadId: input.threadId,
         input: input.userText,
+        inlineItems: [],
         attachments: [],
       }),
     );

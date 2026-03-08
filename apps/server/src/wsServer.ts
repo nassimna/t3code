@@ -254,6 +254,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const terminalManager = yield* TerminalManager;
   const keybindingsManager = yield* Keybindings;
   const providerHealth = yield* ProviderHealth;
+  const providerService = yield* ProviderService;
   const git = yield* GitCore;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -727,6 +728,59 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   );
 
   const routeRequest = Effect.fnUntraced(function* (request: WebSocketRequest) {
+    const resolveComposerProvider = Effect.fnUntraced(function* (input: {
+      readonly threadId: ThreadId;
+      readonly provider?: "codex";
+    }) {
+      if (input.provider) {
+        return input.provider;
+      }
+      const snapshot = yield* projectionReadModelQuery.getSnapshot();
+      const thread = snapshot.threads.find((entry) => entry.id === input.threadId);
+      if (thread?.session?.providerName === "codex") {
+        return "codex" as const;
+      }
+      const activeSession = yield* providerService.listSessions().pipe(
+        Effect.map((sessions) => sessions.find((session) => session.threadId === input.threadId)),
+      );
+      if (activeSession?.provider === "codex") {
+        return "codex" as const;
+      }
+      return "codex" as const;
+    });
+
+    const resolveComposerCwd = Effect.fnUntraced(function* (input: {
+      readonly threadId: ThreadId;
+      readonly cwd?: string;
+    }) {
+      const activeSession = yield* providerService.listSessions().pipe(
+        Effect.map((sessions) => sessions.find((session) => session.threadId === input.threadId)),
+      );
+      const activeSessionCwd = activeSession?.cwd?.trim();
+      if (activeSessionCwd) {
+        return activeSessionCwd;
+      }
+
+      const snapshot = yield* projectionReadModelQuery.getSnapshot();
+      const thread = snapshot.threads.find((entry) => entry.id === input.threadId);
+      if (thread?.worktreePath) {
+        return thread.worktreePath;
+      }
+      const project = thread
+        ? snapshot.projects.find((entry) => entry.id === thread.projectId)
+        : undefined;
+      if (project?.workspaceRoot) {
+        return project.workspaceRoot;
+      }
+      const explicitCwd = input.cwd?.trim();
+      if (explicitCwd) {
+        return explicitCwd;
+      }
+      return yield* new RouteRequestError({
+        message: `Unable to resolve a workspace cwd for thread '${input.threadId}'.`,
+      });
+    });
+
     switch (request.body._tag) {
       case ORCHESTRATION_WS_METHODS.getSnapshot:
         return yield* projectionReadModelQuery.getSnapshot();
@@ -794,6 +848,39 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           ),
         );
         return { relativePath: target.relativePath };
+      }
+
+      case WS_METHODS.providersGetComposerCapabilities: {
+        const body = stripRequestTag(request.body);
+        const provider = yield* resolveComposerProvider({
+          threadId: body.threadId,
+          ...(body.provider !== undefined ? { provider: body.provider } : {}),
+        });
+        return yield* providerService.getComposerCapabilities({
+          threadId: body.threadId,
+          provider,
+          ...(body.cwd !== undefined ? { cwd: body.cwd } : {}),
+          ...(body.providerOptions !== undefined ? { providerOptions: body.providerOptions } : {}),
+        });
+      }
+
+      case WS_METHODS.providersListSkills: {
+        const body = stripRequestTag(request.body);
+        const provider = yield* resolveComposerProvider({
+          threadId: body.threadId,
+          ...(body.provider !== undefined ? { provider: body.provider } : {}),
+        });
+        const resolvedCwd = yield* resolveComposerCwd({
+          threadId: body.threadId,
+          ...(body.cwd !== undefined ? { cwd: body.cwd } : {}),
+        });
+        return yield* providerService.listSkills({
+          threadId: body.threadId,
+          provider,
+          cwd: resolvedCwd,
+          ...(body.providerOptions !== undefined ? { providerOptions: body.providerOptions } : {}),
+          ...(body.forceReload !== undefined ? { forceReload: body.forceReload } : {}),
+        });
       }
 
       case WS_METHODS.shellOpenInEditor: {

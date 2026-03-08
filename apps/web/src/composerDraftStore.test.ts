@@ -1,4 +1,4 @@
-import { ProjectId, ThreadId } from "@t3tools/contracts";
+import { ProjectId, ThreadId, type ComposerInlineItem } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ComposerImageAttachment, useComposerDraftStore } from "./composerDraftStore";
@@ -151,6 +151,39 @@ describe("composerDraftStore clearComposerContent", () => {
     const draft = useComposerDraftStore.getState().draftsByThreadId[threadId];
     expect(draft).toBeUndefined();
     expect(revokeSpy).not.toHaveBeenCalledWith("blob:optimistic");
+  });
+});
+
+describe("composerDraftStore inline items", () => {
+  const threadId = ThreadId.makeUnsafe("thread-inline-items");
+
+  beforeEach(() => {
+    useComposerDraftStore.setState({
+      draftsByThreadId: {},
+      draftThreadsByThreadId: {},
+      projectDraftThreadIdByProjectId: {},
+    });
+  });
+
+  it("stores inline items alongside the prompt", () => {
+    const inlineItems: ComposerInlineItem[] = [
+      {
+        kind: "skill",
+        name: "feature-dev",
+        path: "/skills/feature-dev",
+        start: 6,
+        end: 18,
+      },
+    ];
+
+    useComposerDraftStore.getState().setPrompt(threadId, "Start $feature-dev now", inlineItems);
+
+    expect(useComposerDraftStore.getState().draftsByThreadId[threadId]?.prompt).toBe(
+      "Start $feature-dev now",
+    );
+    expect(useComposerDraftStore.getState().draftsByThreadId[threadId]?.inlineItems).toEqual(
+      inlineItems,
+    );
   });
 });
 

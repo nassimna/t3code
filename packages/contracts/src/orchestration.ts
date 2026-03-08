@@ -105,6 +105,18 @@ export type ChatAttachment = typeof ChatAttachment.Type;
 const UploadChatAttachment = Schema.Union([UploadChatImageAttachment]);
 export type UploadChatAttachment = typeof UploadChatAttachment.Type;
 
+export const ComposerInlineItemKind = Schema.Literals(["skill", "mention"]);
+export type ComposerInlineItemKind = typeof ComposerInlineItemKind.Type;
+
+export const ComposerInlineItem = Schema.Struct({
+  kind: ComposerInlineItemKind,
+  name: TrimmedNonEmptyString,
+  path: TrimmedNonEmptyString,
+  start: NonNegativeInt,
+  end: NonNegativeInt,
+});
+export type ComposerInlineItem = typeof ComposerInlineItem.Type;
+
 export const ProjectScriptIcon = Schema.Literals([
   "play",
   "test",
@@ -361,6 +373,9 @@ export const ThreadTurnStartCommand = Schema.Struct({
     role: Schema.Literal("user"),
     text: Schema.String,
     attachments: Schema.Array(ChatAttachment),
+    inlineItems: Schema.optional(Schema.Array(ComposerInlineItem)).pipe(
+      Schema.withDecodingDefault(() => []),
+    ),
   }),
   provider: Schema.optional(ProviderKind),
   model: Schema.optional(TrimmedNonEmptyString),
@@ -383,6 +398,9 @@ const ClientThreadTurnStartCommand = Schema.Struct({
     role: Schema.Literal("user"),
     text: Schema.String,
     attachments: Schema.Array(UploadChatAttachment),
+    inlineItems: Schema.optional(Schema.Array(ComposerInlineItem)).pipe(
+      Schema.withDecodingDefault(() => []),
+    ),
   }),
   provider: Schema.optional(ProviderKind),
   model: Schema.optional(TrimmedNonEmptyString),
@@ -664,6 +682,9 @@ export const ThreadMessageSentPayload = Schema.Struct({
 export const ThreadTurnStartRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
+  inlineItems: Schema.optional(Schema.Array(ComposerInlineItem)).pipe(
+    Schema.withDecodingDefault(() => []),
+  ),
   provider: Schema.optional(ProviderKind),
   model: Schema.optional(TrimmedNonEmptyString),
   serviceTier: Schema.optional(Schema.NullOr(ProviderServiceTier)),

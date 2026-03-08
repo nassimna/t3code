@@ -11,6 +11,7 @@ import {
 } from "./baseSchemas";
 import {
   ChatAttachment,
+  ComposerInlineItem,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   ProviderApprovalDecision,
@@ -48,14 +49,62 @@ export const ProviderSession = Schema.Struct({
 });
 export type ProviderSession = typeof ProviderSession.Type;
 
-const CodexProviderStartOptions = Schema.Struct({
+export const CodexProviderStartOptions = Schema.Struct({
   binaryPath: Schema.optional(TrimmedNonEmptyStringSchema),
   homePath: Schema.optional(TrimmedNonEmptyStringSchema),
 });
+export type CodexProviderStartOptions = typeof CodexProviderStartOptions.Type;
 
-const ProviderStartOptions = Schema.Struct({
+export const ProviderStartOptions = Schema.Struct({
   codex: Schema.optional(CodexProviderStartOptions),
 });
+export type ProviderStartOptions = typeof ProviderStartOptions.Type;
+
+export const ProviderComposerCapabilitiesInput = Schema.Struct({
+  threadId: ThreadId,
+  provider: Schema.optional(ProviderKind),
+  cwd: Schema.optional(TrimmedNonEmptyStringSchema),
+  providerOptions: Schema.optional(ProviderStartOptions),
+});
+export type ProviderComposerCapabilitiesInput = typeof ProviderComposerCapabilitiesInput.Type;
+
+export const ProviderComposerCapabilities = Schema.Struct({
+  provider: ProviderKind,
+  skillTrigger: Schema.NullOr(TrimmedNonEmptyStringSchema),
+  supportsStructuredPromptItems: Schema.Boolean,
+});
+export type ProviderComposerCapabilities = typeof ProviderComposerCapabilities.Type;
+
+export const ProviderSkillCatalogEntry = Schema.Struct({
+  entryType: TrimmedNonEmptyStringSchema,
+  name: TrimmedNonEmptyStringSchema,
+  path: TrimmedNonEmptyStringSchema,
+  description: Schema.optional(TrimmedNonEmptyStringSchema),
+});
+export type ProviderSkillCatalogEntry = typeof ProviderSkillCatalogEntry.Type;
+
+export const ProviderListSkillsInput = Schema.Struct({
+  threadId: ThreadId,
+  provider: Schema.optional(ProviderKind),
+  cwd: Schema.optional(TrimmedNonEmptyStringSchema),
+  providerOptions: Schema.optional(ProviderStartOptions),
+  forceReload: Schema.optional(Schema.Boolean),
+});
+export type ProviderListSkillsInput = typeof ProviderListSkillsInput.Type;
+
+export const ProviderListSkillsResolvedInput = Schema.Struct({
+  threadId: ThreadId,
+  provider: ProviderKind,
+  cwd: TrimmedNonEmptyStringSchema,
+  providerOptions: Schema.optional(ProviderStartOptions),
+  forceReload: Schema.optional(Schema.Boolean),
+});
+export type ProviderListSkillsResolvedInput = typeof ProviderListSkillsResolvedInput.Type;
+
+export const ProviderListSkillsResult = Schema.Struct({
+  entries: Schema.Array(ProviderSkillCatalogEntry),
+});
+export type ProviderListSkillsResult = typeof ProviderListSkillsResult.Type;
 
 export const ProviderSessionStartInput = Schema.Struct({
   threadId: ThreadId,
@@ -84,6 +133,9 @@ export const ProviderSendTurnInput = Schema.Struct({
   serviceTier: Schema.optional(Schema.NullOr(ProviderServiceTier)),
   modelOptions: Schema.optional(ProviderModelOptions),
   interactionMode: Schema.optional(ProviderInteractionMode),
+  inlineItems: Schema.optional(Schema.Array(ComposerInlineItem)).pipe(
+    Schema.withDecodingDefault(() => []),
+  ),
 });
 export type ProviderSendTurnInput = typeof ProviderSendTurnInput.Type;
 

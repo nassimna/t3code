@@ -5,9 +5,13 @@ import readline from "node:readline";
 
 import {
   ApprovalRequestId,
+  type ComposerInlineItem,
   EventId,
   ProviderItemId,
+  type ProviderComposerCapabilities,
   ProviderRequestKind,
+  type ProviderSkillCatalogEntry,
+  type ProviderListSkillsResult,
   type ProviderUserInputAnswers,
   ThreadId,
   TurnId,
@@ -72,6 +76,9 @@ interface CodexSessionContext {
   pendingUserInputs: Map<ApprovalRequestId, PendingUserInputRequest>;
   nextRequestId: number;
   stopping: boolean;
+  suppressEvents?: boolean;
+  codexBinaryPath: string;
+  codexHomePath?: string;
 }
 
 interface JsonRpcError {
@@ -117,6 +124,7 @@ export interface CodexAppServerSendTurnInput {
   readonly threadId: ThreadId;
   readonly input?: string;
   readonly attachments?: ReadonlyArray<{ type: "image"; url: string }>;
+  readonly inlineItems?: ReadonlyArray<ComposerInlineItem>;
   readonly model?: string;
   readonly serviceTier?: string | null;
   readonly effort?: string;
@@ -144,7 +152,19 @@ export interface CodexThreadSnapshot {
   turns: CodexThreadTurnSnapshot[];
 }
 
+interface CodexTextElement {
+  type: "skill_reference" | "mention";
+  start: number;
+  end: number;
+}
+
+interface SkillsCacheEntry {
+  expiresAtMs: number;
+  entries: ProviderSkillCatalogEntry[];
+}
+
 const CODEX_VERSION_CHECK_TIMEOUT_MS = 4_000;
+const SKILLS_CACHE_TTL_MS = 10_000;
 
 const ANSI_ESCAPE_CHAR = String.fromCharCode(27);
 const ANSI_ESCAPE_REGEX = new RegExp(`${ANSI_ESCAPE_CHAR}\\[[0-9;]*m`, "g");
@@ -514,6 +534,7 @@ export interface CodexAppServerManagerEvents {
 
 export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEvents> {
   private readonly sessions = new Map<ThreadId, CodexSessionContext>();
+  private readonly skillsCache = new Map<string, SkillsCacheEntry>();
 
   private runPromise: (effect: Effect.Effect<unknown, never>) => Promise<unknown>;
   constructor(services?: ServiceMap.ServiceMap<never>) {
@@ -573,6 +594,9 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         pendingUserInputs: new Map(),
         nextRequestId: 1,
         stopping: false,
+        suppressEvents: false,
+        codexBinaryPath,
+        ...(codexHomePath ? { codexHomePath } : {}),
       };
 
       this.sessions.set(threadId, context);
@@ -734,13 +758,47 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     const context = this.requireSession(input.threadId);
 
     const turnInput: Array<
-      { type: "text"; text: string; text_elements: [] } | { type: "image"; url: string }
+      | { type: "text"; text: string; text_elements: CodexTextElement[] }
+      | { type: "image"; url: string }
+      | { type: "skill"; name: string; path: string }
+      | { type: "mention"; name: string; path: string }
     > = [];
     if (input.input) {
+      const textElements: CodexTextElement[] = [];
+      for (const item of input.inlineItems ?? []) {
+        if (item.kind === "skill") {
+          textElements.push({
+            type: "skill_reference",
+            start: item.start,
+            end: item.end,
+          });
+          continue;
+        }
+        textElements.push({
+          type: "mention",
+          start: item.start,
+          end: item.end,
+        });
+      }
       turnInput.push({
         type: "text",
         text: input.input,
-        text_elements: [],
+        text_elements: textElements,
+      });
+    }
+    for (const inlineItem of input.inlineItems ?? []) {
+      if (inlineItem.kind === "skill") {
+        turnInput.push({
+          type: "skill",
+          name: inlineItem.name,
+          path: inlineItem.path,
+        });
+        continue;
+      }
+      turnInput.push({
+        type: "mention",
+        name: inlineItem.name,
+        path: inlineItem.path,
       });
     }
     for (const attachment of input.attachments ?? []) {
@@ -766,7 +824,10 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     const turnStartParams: {
       threadId: string;
       input: Array<
-        { type: "text"; text: string; text_elements: [] } | { type: "image"; url: string }
+        | { type: "text"; text: string; text_elements: CodexTextElement[] }
+        | { type: "image"; url: string }
+        | { type: "skill"; name: string; path: string }
+        | { type: "mention"; name: string; path: string }
       >;
       model?: string;
       serviceTier?: string | null;
@@ -832,6 +893,59 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         ? { resumeCursor: context.session.resumeCursor }
         : {}),
     };
+  }
+
+  async getComposerCapabilities(): Promise<ProviderComposerCapabilities> {
+    return {
+      provider: "codex",
+      skillTrigger: "$",
+      supportsStructuredPromptItems: true,
+    };
+  }
+
+  async listSkills(input: {
+    readonly threadId: ThreadId;
+    readonly cwd: string;
+    readonly forceReload?: boolean;
+    readonly providerOptions?: ProviderSessionStartInput["providerOptions"];
+  }): Promise<ProviderListSkillsResult> {
+    const cacheKey = this.buildSkillsCacheKey({
+      cwd: input.cwd,
+      providerOptions: input.providerOptions,
+    });
+    const now = Date.now();
+    const cached = this.skillsCache.get(cacheKey);
+    if (!input.forceReload && cached && cached.expiresAtMs > now) {
+      return { entries: cached.entries.map((entry) => this.copySkillCatalogEntry(entry)) };
+    }
+
+    const fetchWithContext = async (context: CodexSessionContext) => {
+      const response = await this.sendRequest(context, "skills/list", {
+        cwds: [input.cwd],
+        ...(input.forceReload ? { forceReload: true } : {}),
+      });
+      const entries = this.extractSkillsListEntries(response);
+      this.skillsCache.set(cacheKey, {
+        entries,
+        expiresAtMs: now + SKILLS_CACHE_TTL_MS,
+      });
+      return {
+        entries: entries.map((entry) => this.copySkillCatalogEntry(entry)),
+      };
+    };
+
+    if (this.hasSession(input.threadId)) {
+      return fetchWithContext(this.requireSession(input.threadId));
+    }
+
+    return this.withTransientClient(
+      {
+        threadId: input.threadId,
+        cwd: input.cwd,
+        providerOptions: input.providerOptions,
+      },
+      fetchWithContext,
+    );
   }
 
   async interruptTurn(threadId: ThreadId, turnId?: TurnId): Promise<void> {
@@ -915,7 +1029,8 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       },
     });
 
-    this.emitEvent({
+    this.emitEvent(
+      {
       id: EventId.makeUnsafe(randomUUID()),
       kind: "notification",
       provider: "codex",
@@ -977,6 +1092,29 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       return;
     }
 
+    this.invalidateSkillsCacheForContext(context);
+    this.disposeContext(context);
+    this.sessions.delete(threadId);
+  }
+
+  listSessions(): ProviderSession[] {
+    return Array.from(this.sessions.values(), ({ session }) => ({
+      ...session,
+    }));
+  }
+
+  hasSession(threadId: ThreadId): boolean {
+    return this.sessions.has(threadId);
+  }
+
+  stopAll(): void {
+    for (const threadId of this.sessions.keys()) {
+      this.stopSession(threadId);
+    }
+  }
+
+  private disposeContext(context: CodexSessionContext): void {
+
     context.stopping = true;
 
     for (const pending of context.pending.values()) {
@@ -998,23 +1136,6 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       activeTurnId: undefined,
     });
     this.emitLifecycleEvent(context, "session/closed", "Session stopped");
-    this.sessions.delete(threadId);
-  }
-
-  listSessions(): ProviderSession[] {
-    return Array.from(this.sessions.values(), ({ session }) => ({
-      ...session,
-    }));
-  }
-
-  hasSession(threadId: ThreadId): boolean {
-    return this.sessions.has(threadId);
-  }
-
-  stopAll(): void {
-    for (const threadId of this.sessions.keys()) {
-      this.stopSession(threadId);
-    }
   }
 
   private requireSession(threadId: ThreadId): CodexSessionContext {
@@ -1138,7 +1259,9 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       itemId: route.itemId,
       textDelta,
       payload: notification.params,
-    });
+      },
+      context,
+    );
 
     if (notification.method === "thread/started") {
       const providerThreadId = normalizeProviderThreadId(
@@ -1147,6 +1270,11 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       if (providerThreadId) {
         this.updateSession(context, { resumeCursor: { threadId: providerThreadId } });
       }
+      return;
+    }
+
+    if (notification.method === "skills/changed") {
+      this.invalidateSkillsCacheForContext(context);
       return;
     }
 
@@ -1216,7 +1344,8 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       });
     }
 
-    this.emitEvent({
+    this.emitEvent(
+      {
       id: EventId.makeUnsafe(randomUUID()),
       kind: "request",
       provider: "codex",
@@ -1228,7 +1357,9 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       requestId,
       requestKind,
       payload: request.params,
-    });
+      },
+      context,
+    );
 
     if (requestKind) {
       return;
@@ -1306,31 +1437,184 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
   }
 
   private emitLifecycleEvent(context: CodexSessionContext, method: string, message: string): void {
-    this.emitEvent({
-      id: EventId.makeUnsafe(randomUUID()),
-      kind: "session",
-      provider: "codex",
-      threadId: context.session.threadId,
-      createdAt: new Date().toISOString(),
-      method,
-      message,
-    });
+    this.emitEvent(
+      {
+        id: EventId.makeUnsafe(randomUUID()),
+        kind: "session",
+        provider: "codex",
+        threadId: context.session.threadId,
+        createdAt: new Date().toISOString(),
+        method,
+        message,
+      },
+      context,
+    );
   }
 
   private emitErrorEvent(context: CodexSessionContext, method: string, message: string): void {
-    this.emitEvent({
-      id: EventId.makeUnsafe(randomUUID()),
-      kind: "error",
+    this.emitEvent(
+      {
+        id: EventId.makeUnsafe(randomUUID()),
+        kind: "error",
+        provider: "codex",
+        threadId: context.session.threadId,
+        createdAt: new Date().toISOString(),
+        method,
+        message,
+      },
+      context,
+    );
+  }
+
+  private emitEvent(event: ProviderEvent, context?: CodexSessionContext): void {
+    if (context?.suppressEvents) {
+      return;
+    }
+    this.emit("event", event);
+  }
+
+  private async withTransientClient<T>(
+    input: {
+      readonly threadId: ThreadId;
+      readonly cwd: string;
+      readonly providerOptions?: ProviderSessionStartInput["providerOptions"];
+    },
+    run: (context: CodexSessionContext) => Promise<T>,
+  ): Promise<T> {
+    const context = await this.createDetachedContext(input);
+    try {
+      return await run(context);
+    } finally {
+      this.disposeContext(context);
+    }
+  }
+
+  private async createDetachedContext(input: {
+    readonly threadId: ThreadId;
+    readonly cwd: string;
+    readonly providerOptions?: ProviderSessionStartInput["providerOptions"];
+  }): Promise<CodexSessionContext> {
+    const now = new Date().toISOString();
+    const session: ProviderSession = {
       provider: "codex",
-      threadId: context.session.threadId,
-      createdAt: new Date().toISOString(),
-      method,
-      message,
+      status: "ready",
+      runtimeMode: "full-access",
+      cwd: input.cwd,
+      threadId: input.threadId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const codexOptions = readCodexProviderOptions({
+      threadId: input.threadId,
+      cwd: input.cwd,
+      providerOptions: input.providerOptions,
+      runtimeMode: "full-access",
+    });
+    const codexBinaryPath = codexOptions.binaryPath ?? "codex";
+    const codexHomePath = codexOptions.homePath;
+    this.assertSupportedCodexCliVersion({
+      binaryPath: codexBinaryPath,
+      cwd: input.cwd,
+      ...(codexHomePath ? { homePath: codexHomePath } : {}),
+    });
+    const child = spawn(codexBinaryPath, ["app-server"], {
+      cwd: input.cwd,
+      env: {
+        ...process.env,
+        ...(codexHomePath ? { CODEX_HOME: codexHomePath } : {}),
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: process.platform === "win32",
+    });
+    const output = readline.createInterface({ input: child.stdout });
+    const context: CodexSessionContext = {
+      session,
+      account: {
+        type: "unknown",
+        planType: null,
+        sparkEnabled: true,
+      },
+      child,
+      output,
+      pending: new Map(),
+      pendingApprovals: new Map(),
+      pendingUserInputs: new Map(),
+      nextRequestId: 1,
+      stopping: false,
+      suppressEvents: true,
+      codexBinaryPath,
+      ...(codexHomePath ? { codexHomePath } : {}),
+    };
+    this.attachProcessListeners(context);
+    await this.sendRequest(context, "initialize", buildCodexInitializeParams());
+    this.writeMessage(context, { method: "initialized" });
+    return context;
+  }
+
+  private buildSkillsCacheKey(input: {
+    readonly cwd: string;
+    readonly providerOptions?: ProviderSessionStartInput["providerOptions"];
+  }): string {
+    const codexOptions = input.providerOptions?.codex;
+    return JSON.stringify({
+      cwd: input.cwd,
+      binaryPath: codexOptions?.binaryPath ?? "codex",
+      homePath: codexOptions?.homePath ?? null,
     });
   }
 
-  private emitEvent(event: ProviderEvent): void {
-    this.emit("event", event);
+  private invalidateSkillsCacheForContext(context: CodexSessionContext): void {
+    this.skillsCache.delete(
+      JSON.stringify({
+        cwd: context.session.cwd ?? process.cwd(),
+        binaryPath: context.codexBinaryPath,
+        homePath: context.codexHomePath ?? null,
+      }),
+    );
+  }
+
+  private extractSkillsListEntries(response: unknown): ProviderSkillCatalogEntry[] {
+    const responseRecord = this.readObject(response);
+    const groups = this.readArray(responseRecord, "data") ?? [];
+    const entries: ProviderSkillCatalogEntry[] = [];
+    const seenPaths = new Set<string>();
+
+    for (const groupValue of groups) {
+      const group = this.readObject(groupValue);
+      const skills = this.readArray(group, "skills") ?? [];
+      for (const skillValue of skills) {
+        const skill = this.readObject(skillValue);
+        const name = this.readString(skill, "name");
+        const path = this.readString(skill, "path");
+        if (!name || !path || seenPaths.has(path)) {
+          continue;
+        }
+        const skillInterface = this.readObject(skill, "interface");
+        const description =
+          this.readString(skillInterface, "shortDescription") ??
+          this.readString(skill, "shortDescription") ??
+          this.readString(skill, "short_description") ??
+          this.readString(skill, "description");
+        entries.push({
+          entryType: "skill",
+          name,
+          path,
+          ...(description ? { description } : {}),
+        });
+        seenPaths.add(path);
+      }
+    }
+
+    return entries;
+  }
+
+  private copySkillCatalogEntry(entry: ProviderSkillCatalogEntry): ProviderSkillCatalogEntry {
+    return {
+      entryType: entry.entryType,
+      name: entry.name,
+      path: entry.path,
+      ...(entry.description ? { description: entry.description } : {}),
+    };
   }
 
   private assertSupportedCodexCliVersion(input: {
