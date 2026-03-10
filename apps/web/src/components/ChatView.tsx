@@ -3072,7 +3072,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
           messageText,
           provider: selectedProvider,
           model: selectedModel || undefined,
-          serviceTier: selectedServiceTier,
           ...(selectedModelOptionsForDispatch
             ? { modelOptions: selectedModelOptionsForDispatch }
             : {}),
@@ -3106,7 +3105,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       selectedModel,
       selectedModelOptionsForDispatch,
       selectedProvider,
-      selectedServiceTier,
       setComposerDraftInteractionMode,
       setThreadError,
       settings.enableAssistantStreaming,
@@ -3171,7 +3169,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
           messageText,
           provider: selectedProvider,
           model: selectedModel || undefined,
-          serviceTier: selectedServiceTier,
           ...(selectedModelOptionsForDispatch
             ? { modelOptions: selectedModelOptionsForDispatch }
             : {}),
@@ -3180,8 +3177,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
           runtimeMode,
           interactionMode: "default",
           createdAt,
-        });
-      })
+        })
+      )
       .then(() => api.orchestration.getSnapshot())
       .then((snapshot) => {
         syncServerReadModel(snapshot);
@@ -3229,7 +3226,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     selectedModelOptionsForDispatch,
     providerOptionsForDispatch,
     selectedProvider,
-    selectedServiceTier,
     settings.enableAssistantStreaming,
     syncServerReadModel,
   ]);
