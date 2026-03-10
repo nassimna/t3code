@@ -1,3 +1,5 @@
+import type { ProposedPlan } from "./types";
+
 export function proposedPlanTitle(planMarkdown: string): string | null {
   const heading = planMarkdown.match(/^\s{0,3}#{1,6}\s+(.+)$/m)?.[1]?.trim();
   return heading && heading.length > 0 ? heading : null;
@@ -101,6 +103,19 @@ export function buildPlanImplementationThreadTitle(planMarkdown: string): string
     return "Implement plan";
   }
   return `Implement ${title}`;
+}
+
+export function cloneProposedPlanForNewThread(
+  proposedPlan: Pick<ProposedPlan, "planMarkdown">,
+  createdAt: string,
+): ProposedPlan {
+  return {
+    id: `plan:${crypto.randomUUID()}`,
+    turnId: null,
+    planMarkdown: proposedPlan.planMarkdown,
+    createdAt,
+    updatedAt: createdAt,
+  };
 }
 
 export function buildProposedPlanMarkdownFilename(planMarkdown: string): string {

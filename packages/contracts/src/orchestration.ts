@@ -459,6 +459,14 @@ const ThreadSessionStopCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadProposedPlanUpsertCommand = Schema.Struct({
+  type: Schema.Literal("thread.proposed-plan.upsert"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  proposedPlan: OrchestrationProposedPlan,
+  createdAt: IsoDateTime,
+});
+
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
@@ -469,6 +477,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   ThreadTurnStartCommand,
+  ThreadProposedPlanUpsertCommand,
   ThreadPlanImplementCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -489,6 +498,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadRuntimeModeSetCommand,
   ThreadInteractionModeSetCommand,
   ClientThreadTurnStartCommand,
+  ThreadProposedPlanUpsertCommand,
   ThreadPlanImplementCommand,
   ThreadTurnInterruptCommand,
   ThreadApprovalRespondCommand,
@@ -522,14 +532,6 @@ const ThreadMessageAssistantCompleteCommand = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
   turnId: Schema.optional(TurnId),
-  createdAt: IsoDateTime,
-});
-
-const ThreadProposedPlanUpsertCommand = Schema.Struct({
-  type: Schema.Literal("thread.proposed-plan.upsert"),
-  commandId: CommandId,
-  threadId: ThreadId,
-  proposedPlan: OrchestrationProposedPlan,
   createdAt: IsoDateTime,
 });
 
@@ -567,7 +569,6 @@ const InternalOrchestrationCommand = Schema.Union([
   ThreadSessionSetCommand,
   ThreadMessageAssistantDeltaCommand,
   ThreadMessageAssistantCompleteCommand,
-  ThreadProposedPlanUpsertCommand,
   ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
   ThreadRevertCompleteCommand,

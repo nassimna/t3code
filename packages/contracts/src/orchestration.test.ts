@@ -221,6 +221,25 @@ it.effect("includes thread.plan.implement in the client orchestration command un
   }),
 );
 
+it.effect("includes thread.proposed-plan.upsert in the client orchestration command union", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeClientOrchestrationCommand({
+      type: "thread.proposed-plan.upsert",
+      commandId: "cmd-plan-upsert-union",
+      threadId: "thread-1",
+      proposedPlan: {
+        id: "plan-1",
+        turnId: null,
+        planMarkdown: "# Plan\n\n- step 1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.type, "thread.proposed-plan.upsert");
+  }),
+);
+
 it.effect(
   "decodes thread.turn-start-requested defaults for provider, runtime mode, and interaction mode",
   () =>

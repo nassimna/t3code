@@ -83,6 +83,18 @@ export type TimelineEntry =
       entry: WorkLogEntry;
     };
 
+function timelineEntryKindOrder(entry: TimelineEntry): number {
+  switch (entry.kind) {
+    case "proposed-plan":
+      return 0;
+    case "message":
+      return 1;
+    case "work":
+    default:
+      return 2;
+  }
+}
+
 export function formatTimestamp(isoDate: string): string {
   return new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
@@ -596,7 +608,9 @@ export function deriveTimelineEntries(
     entry,
   }));
   return [...messageRows, ...proposedPlanRows, ...workRows].toSorted((a, b) =>
-    a.createdAt.localeCompare(b.createdAt),
+    a.createdAt.localeCompare(b.createdAt) ||
+    timelineEntryKindOrder(a) - timelineEntryKindOrder(b) ||
+    a.id.localeCompare(b.id),
   );
 }
 

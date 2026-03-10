@@ -323,6 +323,35 @@ describe("findLatestProposedPlan", () => {
   });
 });
 
+describe("deriveTimelineEntries", () => {
+  it("places proposed plans before messages when they share the same timestamp", () => {
+    const entries = deriveTimelineEntries(
+      [
+        {
+          id: MessageId.makeUnsafe("msg-1"),
+          role: "user",
+          text: "Implement this plan.",
+          streaming: false,
+          createdAt: "2026-02-23T00:00:01.000Z",
+          completedAt: "2026-02-23T00:00:01.000Z",
+        },
+      ],
+      [
+        {
+          id: "plan-1",
+          turnId: null,
+          planMarkdown: "# Plan",
+          createdAt: "2026-02-23T00:00:01.000Z",
+          updatedAt: "2026-02-23T00:00:01.000Z",
+        },
+      ],
+      [],
+    );
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["proposed-plan", "message"]);
+  });
+});
+
 describe("deriveWorkLogEntries", () => {
   it("omits tool started entries and keeps completed entries", () => {
     const activities: OrchestrationThreadActivity[] = [

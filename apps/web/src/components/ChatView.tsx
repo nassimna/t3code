@@ -16,7 +16,6 @@ import {
   type ProviderApprovalDecision,
   type ServerProviderStatus,
   type ProviderKind,
-  type OrchestrationProposedPlanId,
   type ThreadId,
   type TurnId,
   OrchestrationThreadActivity,
@@ -91,6 +90,7 @@ import {
 import { useStore } from "../store";
 import {
   buildCollapsedProposedPlanPreviewMarkdown,
+  cloneProposedPlanForNewThread,
   buildPlanImplementationMessageText,
   buildPlanImplementationThreadTitle,
   buildProposedPlanMarkdownFilename,
@@ -2472,7 +2472,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       if (followUp.text === null) {
         await onSubmitPlanImplementation({
           threadId: activeThread.id,
-          planId: activeProposedPlan.id,
           createdAt: new Date().toISOString(),
         });
         return;
@@ -3015,11 +3014,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const onSubmitPlanImplementation = useCallback(
     async ({
       threadId,
-      planId,
       createdAt,
     }: {
       threadId: ThreadId;
-      planId: OrchestrationProposedPlanId;
       createdAt: string;
     }) => {
       const api = readNativeApi();
@@ -3064,17 +3061,21 @@ export default function ChatView({ threadId }: ChatViewProps) {
         setComposerDraftInteractionMode(threadId, "default");
 
         await api.orchestration.dispatchCommand({
-          type: "thread.plan.implement",
+          type: "thread.turn.start",
           commandId: newCommandId(),
           threadId,
-          planId,
-          messageId: messageIdForSend,
-          messageText,
+          message: {
+            messageId: messageIdForSend,
+            role: "user",
+            text: messageText,
+            attachments: [],
+          },
           provider: selectedProvider,
           model: selectedModel || undefined,
           ...(selectedModelOptionsForDispatch
             ? { modelOptions: selectedModelOptionsForDispatch }
             : {}),
+          ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
           assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
           runtimeMode,
           interactionMode: "default",
@@ -3104,6 +3105,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       runtimeMode,
       selectedModel,
       selectedModelOptionsForDispatch,
+      providerOptionsForDispatch,
       selectedProvider,
       setComposerDraftInteractionMode,
       setThreadError,
@@ -3128,7 +3130,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
     const createdAt = new Date().toISOString();
     const nextThreadId = newThreadId();
-    const messageText = buildPlanImplementationMessageText();
+    const copiedProposedPlan = cloneProposedPlanForNewThread(activeProposedPlan, createdAt);
+    const messageIdForSend = newMessageId();
     const nextThreadTitle = truncateTitle(
       buildPlanImplementationThreadTitle(activeProposedPlan.planMarkdown),
     );
@@ -3161,12 +3164,21 @@ export default function ChatView({ threadId }: ChatViewProps) {
       })
       .then(() =>
         api.orchestration.dispatchCommand({
+          type: "thread.proposed-plan.upsert",
+          commandId: newCommandId(),
+          threadId: nextThreadId,
+          proposedPlan: copiedProposedPlan,
+          createdAt,
+        })
+      )
+      .then(() =>
+        api.orchestration.dispatchCommand({
           type: "thread.plan.implement",
           commandId: newCommandId(),
           threadId: nextThreadId,
-          planId: activeProposedPlan.id,
-          messageId: newMessageId(),
-          messageText,
+          planId: copiedProposedPlan.id,
+          messageId: messageIdForSend,
+          messageText: buildPlanImplementationMessageText(),
           provider: selectedProvider,
           model: selectedModel || undefined,
           ...(selectedModelOptionsForDispatch

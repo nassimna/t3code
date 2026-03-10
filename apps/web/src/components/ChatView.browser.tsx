@@ -911,7 +911,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("dispatches plan implementation with a short visible user message instead of the full plan", async () => {
+  it("dispatches same-thread plan implementation as a normal turn-start message", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createPlanFollowUpSnapshot(),
@@ -939,13 +939,14 @@ describe("ChatView timeline estimator parity (full app)", () => {
             dispatchRequests.some(
               (request) =>
                 (request.command as { type?: string } | undefined)?.type ===
-                "thread.plan.implement",
+                "thread.turn.start",
             ),
           ).toBe(true);
           expect(
             dispatchRequests.some(
               (request) =>
-                (request.command as { type?: string } | undefined)?.type === "thread.turn.start",
+                (request.command as { type?: string } | undefined)?.type ===
+                "thread.plan.implement",
             ),
           ).toBe(false);
         },
@@ -957,6 +958,107 @@ describe("ChatView timeline estimator parity (full app)", () => {
         initialUserRowCount + 1,
       );
       expect(document.body.textContent?.includes(visibleImplementationMessage)).toBe(true);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("creates a new thread with a copied plan and a short visible implementation message", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createPlanFollowUpSnapshot(),
+    });
+
+    try {
+      const actionsButton = await waitForElement(
+        () =>
+          document.querySelector('button[aria-label="Implementation actions"]') as
+            | HTMLButtonElement
+            | null,
+        "Unable to find implementation actions button.",
+      );
+      actionsButton.click();
+
+      const implementInNewThreadButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+            (item) => item.textContent?.trim() === "Implement in new thread",
+          ) as HTMLElement | null,
+        "Unable to find Implement in new thread action.",
+      );
+      implementInNewThreadButton.click();
+
+      await vi.waitFor(
+        () => {
+          const dispatchRequests = wsRequests.filter(
+            (request) => request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand,
+          );
+          expect(
+            dispatchRequests.some(
+              (request) =>
+                (request.command as { type?: string } | undefined)?.type === "thread.create",
+            ),
+          ).toBe(true);
+          expect(
+            dispatchRequests.some(
+              (request) =>
+                (request.command as { type?: string } | undefined)?.type ===
+                "thread.proposed-plan.upsert",
+            ),
+          ).toBe(true);
+          expect(
+            dispatchRequests.some(
+              (request) =>
+                (request.command as { type?: string } | undefined)?.type === "thread.turn.start",
+            ),
+          ).toBe(false);
+          expect(
+            dispatchRequests.some(
+              (request) =>
+                (request.command as { type?: string } | undefined)?.type ===
+                "thread.plan.implement",
+            ),
+          ).toBe(true);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const proposedPlanUpsertRequest = wsRequests.find(
+        (request) =>
+          request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand &&
+          (request.command as { type?: string } | undefined)?.type === "thread.proposed-plan.upsert",
+      ) as
+        | {
+            command?: {
+              type?: string;
+              proposedPlan?: {
+                id?: string;
+                turnId?: string | null;
+                planMarkdown?: string;
+              };
+            };
+          }
+        | undefined;
+
+      const planImplementRequest = wsRequests.find(
+        (request) =>
+          request._tag === ORCHESTRATION_WS_METHODS.dispatchCommand &&
+          (request.command as { type?: string } | undefined)?.type === "thread.plan.implement",
+      ) as
+        | {
+            command?: {
+              type?: string;
+              messageText?: string;
+            };
+          }
+        | undefined;
+
+      expect(proposedPlanUpsertRequest?.command?.proposedPlan).toMatchObject({
+        turnId: null,
+        planMarkdown: "# Hidden Plan\n\n- step 1",
+      });
+      expect(proposedPlanUpsertRequest?.command?.proposedPlan?.id).not.toBe("plan-1");
+      expect(planImplementRequest?.command?.messageText).toBe(buildPlanImplementationMessageText());
     } finally {
       await mounted.cleanup();
     }
