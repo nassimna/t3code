@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { hasUnseenCompletion, resolveThreadStatusPill } from "./Sidebar.logic";
+import {
+  compareThreadsByLatestActivity,
+  getThreadLatestActivityAt,
+  hasUnseenCompletion,
+  resolveThreadStatusPill,
+} from "./Sidebar.logic";
 
 function makeLatestTurn(overrides?: {
   completedAt?: string | null;
@@ -27,6 +32,94 @@ describe("hasUnseenCompletion", () => {
         session: null,
       }),
     ).toBe(true);
+  });
+});
+
+describe("compareThreadsByLatestActivity", () => {
+  it("sorts threads by updatedAt before createdAt", () => {
+    const threads = [
+      {
+        id: "thread-older-updated" as never,
+        createdAt: "2026-03-09T10:05:00.000Z",
+        updatedAt: "2026-03-09T10:06:00.000Z",
+      },
+      {
+        id: "thread-latest-updated" as never,
+        createdAt: "2026-03-09T10:00:00.000Z",
+        updatedAt: "2026-03-09T10:10:00.000Z",
+      },
+    ];
+
+    expect(threads.toSorted(compareThreadsByLatestActivity).map((thread) => thread.id)).toEqual([
+      "thread-latest-updated",
+      "thread-older-updated",
+    ]);
+  });
+
+  it("falls back to createdAt and then id when updatedAt values tie", () => {
+    const threads = [
+      {
+        id: "thread-a" as never,
+        createdAt: "2026-03-09T10:00:00.000Z",
+        updatedAt: "2026-03-09T10:05:00.000Z",
+      },
+      {
+        id: "thread-c" as never,
+        createdAt: "2026-03-09T10:00:00.000Z",
+        updatedAt: "2026-03-09T10:05:00.000Z",
+      },
+      {
+        id: "thread-b" as never,
+        createdAt: "2026-03-09T10:04:00.000Z",
+        updatedAt: "2026-03-09T10:05:00.000Z",
+      },
+    ];
+
+    expect(threads.toSorted(compareThreadsByLatestActivity).map((thread) => thread.id)).toEqual([
+      "thread-b",
+      "thread-c",
+      "thread-a",
+    ]);
+  });
+
+  it("falls back to createdAt when updatedAt is invalid", () => {
+    const threads = [
+      {
+        id: "thread-valid-updated" as never,
+        createdAt: "2026-03-09T10:00:00.000Z",
+        updatedAt: "2026-03-09T10:05:00.000Z",
+      },
+      {
+        id: "thread-invalid-updated" as never,
+        createdAt: "2026-03-09T10:06:00.000Z",
+        updatedAt: "invalid",
+      },
+    ];
+
+    expect(threads.toSorted(compareThreadsByLatestActivity).map((thread) => thread.id)).toEqual([
+      "thread-invalid-updated",
+      "thread-valid-updated",
+    ]);
+  });
+});
+
+describe("getThreadLatestActivityAt", () => {
+  it("returns updatedAt when it is valid", () => {
+    expect(
+      getThreadLatestActivityAt({
+        createdAt: "2026-03-09T10:00:00.000Z",
+        updatedAt: "2026-03-09T10:05:00.000Z",
+      }),
+    ).toBe("2026-03-09T10:05:00.000Z");
+  });
+
+  it("falls back to createdAt when updatedAt is invalid", () => {
+    expect(
+      getThreadLatestActivityAt({
+        createdAt: "2026-03-09T10:00:00.000Z",
+        updatedAt: "invalid",
+      }),
+    ).toBe("2026-03-09T10:00:00.000Z");
   });
 });
 

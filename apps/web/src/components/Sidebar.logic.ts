@@ -19,6 +19,54 @@ type ThreadStatusInput = Pick<
   "interactionMode" | "latestTurn" | "lastVisitedAt" | "proposedPlans" | "session"
 >;
 
+function parseThreadTimestamp(value: string): number | null {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+export function getThreadLatestActivityAt(thread: Pick<Thread, "createdAt" | "updatedAt">): string {
+  return parseThreadTimestamp(thread.updatedAt) === null ? thread.createdAt : thread.updatedAt;
+}
+
+function getThreadLatestActivityTimestamp(
+  thread: Pick<Thread, "createdAt" | "updatedAt">,
+): number | null {
+  const updatedAt = parseThreadTimestamp(thread.updatedAt);
+  if (updatedAt !== null) {
+    return updatedAt;
+  }
+  return parseThreadTimestamp(thread.createdAt);
+}
+
+export function compareThreadsByLatestActivity(
+  left: Pick<Thread, "id" | "createdAt" | "updatedAt">,
+  right: Pick<Thread, "id" | "createdAt" | "updatedAt">,
+): number {
+  const leftLatestActivityAt = getThreadLatestActivityTimestamp(left);
+  const rightLatestActivityAt = getThreadLatestActivityTimestamp(right);
+  if (
+    leftLatestActivityAt !== null &&
+    rightLatestActivityAt !== null &&
+    leftLatestActivityAt !== rightLatestActivityAt
+  ) {
+    return rightLatestActivityAt - leftLatestActivityAt;
+  }
+  if (leftLatestActivityAt !== rightLatestActivityAt) {
+    return rightLatestActivityAt === null ? -1 : 1;
+  }
+
+  const leftCreatedAt = parseThreadTimestamp(left.createdAt);
+  const rightCreatedAt = parseThreadTimestamp(right.createdAt);
+  if (leftCreatedAt !== null && rightCreatedAt !== null && leftCreatedAt !== rightCreatedAt) {
+    return rightCreatedAt - leftCreatedAt;
+  }
+  if (leftCreatedAt !== rightCreatedAt) {
+    return rightCreatedAt === null ? -1 : 1;
+  }
+
+  return right.id.localeCompare(left.id);
+}
+
 export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
   if (!thread.latestTurn?.completedAt) return false;
   const completedAt = Date.parse(thread.latestTurn.completedAt);
