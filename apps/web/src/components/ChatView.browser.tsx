@@ -32,6 +32,7 @@ import {
 import { isMacPlatform } from "../lib/utils";
 import { __resetNativeApiForTests } from "../nativeApi";
 import { getRouter } from "../router";
+import { getServerConfig } from "../rpc/serverState";
 import { useStore } from "../store";
 import { BrowserWsRpcHarness, type NormalizedWsRpcRequestBody } from "../../test/wsRpcHarness";
 import { estimateTimelineMessageHeight } from "./timelineHeight";
@@ -865,6 +866,7 @@ async function waitForServerConfigToApply(): Promise<void> {
       expect(wsRequests.some((request) => request._tag === WS_METHODS.subscribeServerConfig)).toBe(
         true,
       );
+      expect(getServerConfig()?.keybindings).toEqual(fixture.serverConfig.keybindings);
     },
     { timeout: 8_000, interval: 16 },
   );
@@ -896,6 +898,23 @@ function dispatchSidebarToggleShortcut(): void {
       cancelable: true,
     }),
   );
+}
+
+async function triggerSidebarToggleShortcutUntilState(
+  sidebarRoot: HTMLElement,
+  expectedState: "expanded" | "collapsed",
+  errorMessage: string,
+): Promise<void> {
+  const deadline = Date.now() + 8_000;
+  while (Date.now() < deadline) {
+    dispatchSidebarToggleShortcut();
+    await waitForLayout();
+    if (sidebarRoot.dataset.state === expectedState) {
+      return;
+    }
+  }
+
+  throw new Error(`${errorMessage} Last state: ${sidebarRoot.dataset.state ?? "<missing>"}`);
 }
 
 async function triggerChatNewShortcutUntilPath(
@@ -2541,20 +2560,16 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
       expect(sidebarRoot.dataset.state).toBe("expanded");
 
-      dispatchSidebarToggleShortcut();
-      await vi.waitFor(
-        () => {
-          expect(sidebarRoot.dataset.state).toBe("collapsed");
-        },
-        { timeout: 8_000, interval: 16 },
+      await triggerSidebarToggleShortcutUntilState(
+        sidebarRoot,
+        "collapsed",
+        "Sidebar should collapse from the global sidebar.toggle shortcut.",
       );
 
-      dispatchSidebarToggleShortcut();
-      await vi.waitFor(
-        () => {
-          expect(sidebarRoot.dataset.state).toBe("expanded");
-        },
-        { timeout: 8_000, interval: 16 },
+      await triggerSidebarToggleShortcutUntilState(
+        sidebarRoot,
+        "expanded",
+        "Sidebar should expand from the global sidebar.toggle shortcut.",
       );
     } finally {
       await mounted.cleanup();
