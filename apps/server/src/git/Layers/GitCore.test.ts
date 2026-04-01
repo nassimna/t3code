@@ -799,7 +799,21 @@ it.layer(TestLayer)("git integration", (it) => {
         yield* git(source, ["checkout", defaultBranch]);
         yield* git(source, ["branch", "-D", featureBranch]);
 
-        yield* (yield* GitCore).checkoutBranch({
+        const realGitCore = yield* GitCore;
+        const core = yield* makeIsolatedGitCore((input) => {
+          if (input.args[0] === "fetch") {
+            return Effect.succeed({
+              code: 0,
+              stdout: "",
+              stderr: "",
+              stdoutTruncated: false,
+              stderrTruncated: false,
+            });
+          }
+          return realGitCore.execute(input);
+        });
+
+        yield* core.checkoutBranch({
           cwd: source,
           branch: `${remoteName}/${featureBranch}`,
         });
