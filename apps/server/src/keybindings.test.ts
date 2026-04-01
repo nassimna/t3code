@@ -165,16 +165,18 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     }).pipe(Effect.provide(makeKeybindingsLayer())),
   );
 
-  it.effect("ships configurable thread navigation defaults", () =>
+  it.effect("ships configurable sidebar and thread navigation defaults", () =>
     Effect.sync(() => {
       const defaultsByCommand = new Map(
-        DEFAULT_KEYBINDINGS.map((binding) => [binding.command, binding.key] as const),
+        DEFAULT_KEYBINDINGS.map((binding) => [binding.command, binding] as const),
       );
 
-      assert.equal(defaultsByCommand.get("thread.previous"), "mod+shift+[");
-      assert.equal(defaultsByCommand.get("thread.next"), "mod+shift+]");
-      assert.equal(defaultsByCommand.get("thread.jump.1"), "mod+1");
-      assert.equal(defaultsByCommand.get("thread.jump.9"), "mod+9");
+      assert.equal(defaultsByCommand.get("sidebar.toggle")?.key, "mod+b");
+      assert.equal(defaultsByCommand.get("sidebar.toggle")?.when, "!terminalFocus");
+      assert.equal(defaultsByCommand.get("thread.previous")?.key, "mod+shift+[");
+      assert.equal(defaultsByCommand.get("thread.next")?.key, "mod+shift+]");
+      assert.equal(defaultsByCommand.get("thread.jump.1")?.key, "mod+1");
+      assert.equal(defaultsByCommand.get("thread.jump.9")?.key, "mod+9");
     }),
   );
 

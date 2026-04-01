@@ -41,6 +41,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedDiffToggle.command, "diff.toggle");
 
+    const parsedSidebarToggle = yield* decode(KeybindingRule, {
+      key: "mod+b",
+      command: "sidebar.toggle",
+    });
+    assert.strictEqual(parsedSidebarToggle.command, "sidebar.toggle");
+
     const parsedLocal = yield* decode(KeybindingRule, {
       key: "mod+shift+n",
       command: "chat.newLocal",
@@ -90,9 +96,9 @@ it.effect("parses keybindings array payload", () =>
 it.effect("parses resolved keybinding rules", () =>
   Effect.gen(function* () {
     const parsed = yield* decode(ResolvedKeybindingRule, {
-      command: "terminal.split",
+      command: "sidebar.toggle",
       shortcut: {
-        key: "d",
+        key: "b",
         metaKey: false,
         ctrlKey: false,
         shiftKey: false,
@@ -108,7 +114,8 @@ it.effect("parses resolved keybinding rules", () =>
         },
       },
     });
-    assert.strictEqual(parsed.shortcut.key, "d");
+    assert.strictEqual(parsed.command, "sidebar.toggle");
+    assert.strictEqual(parsed.shortcut.key, "b");
   }),
 );
 

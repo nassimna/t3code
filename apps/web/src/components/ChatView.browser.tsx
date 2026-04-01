@@ -885,6 +885,19 @@ function dispatchChatNewShortcut(): void {
   );
 }
 
+function dispatchSidebarToggleShortcut(): void {
+  const useMetaForMod = isMacPlatform(navigator.platform);
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "b",
+      metaKey: useMetaForMod,
+      ctrlKey: !useMetaForMod,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+}
+
 async function triggerChatNewShortcutUntilPath(
   router: ReturnType<typeof getRouter>,
   predicate: (pathname: string) => boolean,
@@ -2487,6 +2500,67 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await mounted.cleanup();
     }
   });
+
+  it("toggles the main left sidebar from the global sidebar.toggle shortcut", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-sidebar-shortcut-test" as MessageId,
+        targetText: "sidebar shortcut test",
+      }),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          keybindings: [
+            {
+              command: "sidebar.toggle",
+              shortcut: {
+                key: "b",
+                metaKey: false,
+                ctrlKey: false,
+                shiftKey: false,
+                altKey: false,
+                modKey: true,
+              },
+              whenAst: {
+                type: "not",
+                node: { type: "identifier", name: "terminalFocus" },
+              },
+            },
+          ],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const sidebarRoot = await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-slot="sidebar"][data-side="left"]'),
+        "Unable to find the main left sidebar root.",
+      );
+
+      expect(sidebarRoot.dataset.state).toBe("expanded");
+
+      dispatchSidebarToggleShortcut();
+      await vi.waitFor(
+        () => {
+          expect(sidebarRoot.dataset.state).toBe("collapsed");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      dispatchSidebarToggleShortcut();
+      await vi.waitFor(
+        () => {
+          expect(sidebarRoot.dataset.state).toBe("expanded");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("creates a fresh draft after the previous draft thread is promoted", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
