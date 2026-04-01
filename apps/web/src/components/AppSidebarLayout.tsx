@@ -1,11 +1,10 @@
-import { ThreadId, type ResolvedKeybindingsConfig } from "@t3tools/contracts";
-import { useQuery } from "@tanstack/react-query";
+import { ThreadId } from "@t3tools/contracts";
 import { useEffect, type ReactNode } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 
-import { serverConfigQueryOptions } from "../lib/serverReactQuery";
 import { resolveShortcutCommand } from "../keybindings";
 import { isTerminalFocused } from "../lib/terminalFocus";
+import { useServerKeybindings } from "../rpc/serverState";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import ThreadSidebar from "./Sidebar";
 import { Sidebar, SidebarProvider, SidebarRail, useSidebar } from "./ui/sidebar";
@@ -13,12 +12,10 @@ import { Sidebar, SidebarProvider, SidebarRail, useSidebar } from "./ui/sidebar"
 const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
 const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
 const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;
-const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 
 function AppSidebarKeyboardShortcuts() {
   const { toggleSidebar } = useSidebar();
-  const { data: serverConfig } = useQuery(serverConfigQueryOptions());
-  const keybindings = serverConfig?.keybindings ?? EMPTY_KEYBINDINGS;
+  const keybindings = useServerKeybindings();
   const routeThreadId = useParams({
     strict: false,
     select: (params) => (params.threadId ? ThreadId.makeUnsafe(params.threadId) : null),
